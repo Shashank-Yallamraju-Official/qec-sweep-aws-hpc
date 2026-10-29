@@ -28,19 +28,19 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 5. `docs: add design document and conventions`
 6. `feat(tools): report time and fixes per commit from hook log`
 
-### Cost guardrails
-
-7. `feat(infra): add terraform for the results bucket`
-8. `feat(infra): add budget alerts at 20 and 50 usd a month`
-9. `feat(infra): tag every resource for cost allocation`
-
 ### Stage 1, unit of work
 
-10. `feat(sweep): model a cell as distance, noise rate and shots`
-11. `feat(sweep): decode a cell with stim and pymatching`
-12. `feat(sweep): write a cell result as parquet named by cell`
-13. `feat(sweep): add the sweep command line`
-14. `test(sweep): run one cell end to end against a local path`
+7. `feat(sweep): model a cell as distance, noise rate and shots`
+8. `feat(sweep): decode a cell with stim and pymatching`
+9. `feat(sweep): write a cell result as parquet named by cell`
+10. `feat(sweep): add the sweep command line`
+11. `test(sweep): run one cell end to end against a local path`
+
+### Cost guardrails
+
+12. `feat(infra): add terraform for the results bucket`
+13. `feat(infra): add budget alerts at 20 and 50 usd a month`
+14. `feat(infra): tag every resource for cost allocation`
 
 ### Stage 2, one node by hand
 
