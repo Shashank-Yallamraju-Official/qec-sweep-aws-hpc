@@ -1,0 +1,192 @@
+"""Turns the hook event log into time and fix counts per planned commit.
+
+Used by the Claude Code status line (--status), pull request bodies
+(--stage) and the README process table (no flag).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from itertools import pairwise
+from pathlib import Path
+
+IDLE_GAP = timedelta(minutes=10)
+EVENTS_PATH = Path(".claude/metrics/events.jsonl")
+PLAN_PATH = Path("docs/plan.md")
+GROUP = re.compile(r"^### (?P<group>.+)$")
+PLANNED = re.compile(r"^(?P<position>\d+)\. `(?P<subject>.+)`$")
+
+
+@dataclass(frozen=True)
+class Event:
+    at: datetime
+    kind: str
+    data: Mapping[str, object]
+
+
+@dataclass(frozen=True)
+class PlannedCommit:
+    group: str
+    position: int
+    subject: str
+
+
+@dataclass(frozen=True)
+class TaskStats:
+    subject: str
+    active: timedelta
+    edits: int
+    rejected_edits: int
+    failed_tests: int
+    rejected_commits: int
+
+
+def read_events(path: Path) -> list[Event]:
+    if not path.exists():
+        return []
+    events = []
+    for line in path.read_text().splitlines():
+        try:
+            record = json.loads(line)
+            at = datetime.fromisoformat(record.pop("ts"))
+            kind = str(record.pop("event"))
+        except (ValueError, KeyError, AttributeError):
+            continue
+        events.append(Event(at=at, kind=kind, data=record))
+    return events
+
+
+def read_plan(path: Path) -> list[PlannedCommit]:
+    if not path.exists():
+        return []
+    plan = []
+    group = ""
+    for line in path.read_text().splitlines():
+        if heading := GROUP.match(line):
+            group = heading["group"]
+        elif planned := PLANNED.match(line):
+            plan.append(PlannedCommit(group, int(planned["position"]), planned["subject"]))
+    return plan
+
+
+def committed_subjects(repo: Path) -> set[str]:
+    return set(_git(repo, "log", "--format=%s").splitlines())
+
+
+def current_branch(repo: Path) -> str:
+    return _git(repo, "branch", "--show-current").strip()
+
+
+def current_task(plan: Sequence[PlannedCommit], done: AbstractSet[str]) -> PlannedCommit | None:
+    return next((p for p in plan if p.subject not in done), None)
+
+
+def active_time(times: Sequence[datetime], idle_gap: timedelta = IDLE_GAP) -> timedelta:
+    gaps = (later - earlier for earlier, later in pairwise(times))
+    return sum((gap for gap in gaps if gap <= idle_gap), timedelta(0))
+
+
+def stats_per_commit(events: Sequence[Event]) -> list[TaskStats]:
+    rows = []
+    start = 0
+    for index, event in enumerate(events):
+        if event.kind == "commit":
+            segment = events[max(start - 1, 0) : index + 1]
+            rows.append(_stats(str(event.data.get("subject", "")), segment))
+            start = index + 1
+    return rows
+
+
+def open_segment(events: Sequence[Event], subject: str, now: datetime) -> TaskStats:
+    last_commit = max((i for i, e in enumerate(events) if e.kind == "commit"), default=-1)
+    segment = events[max(last_commit, 0) :]
+    return _stats(subject, segment, now)
+
+
+def _stats(subject: str, segment: Sequence[Event], now: datetime | None = None) -> TaskStats:
+    times = [e.at for e in segment] + ([now] if now else [])
+    edits = [e for e in segment if e.kind == "edit"]
+    tests = [e for e in segment if e.kind == "test"]
+    return TaskStats(
+        subject=subject,
+        active=active_time(times),
+        edits=len(edits),
+        rejected_edits=sum(1 for e in edits if not e.data.get("ok", True)),
+        failed_tests=sum(1 for e in tests if not e.data.get("ok", True)),
+        rejected_commits=sum(1 for e in segment if e.kind == "commit_rejected"),
+    )
+
+
+def status_line(
+    branch: str, task: PlannedCommit | None, total: int, current: TaskStats | None
+) -> str:
+    parts = [branch]
+    if task:
+        parts.append(f"{task.position}/{total} {task.subject}")
+    if current:
+        parts.append(
+            f"{_minutes(current.active)}m · {current.edits} edits · "
+            f"{current.rejected_edits} rejected · {current.rejected_commits + 1} attempts"
+        )
+    return "  ".join(parts)
+
+
+def table(rows: Sequence[TaskStats]) -> str:
+    lines = [
+        "| commit | active min | edits | edits rejected | tests failed | commit attempts |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    lines += [
+        f"| {r.subject} | {_minutes(r.active)} | {r.edits} | {r.rejected_edits} "
+        f"| {r.failed_tests} | {r.rejected_commits + 1} |"
+        for r in rows
+    ]
+    return "\n".join(lines)
+
+
+def _minutes(duration: timedelta) -> int:
+    return round(duration.total_seconds() / 60)
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout
+
+
+def _status(repo: Path, plan: Sequence[PlannedCommit], events: Sequence[Event]) -> str:
+    task = current_task(plan, committed_subjects(repo))
+    current = open_segment(events, task.subject if task else "", datetime.now(UTC))
+    return status_line(current_branch(repo), task, len(plan), current if events else None)
+
+
+def _rows(plan: Sequence[PlannedCommit], events: Sequence[Event], stage: str | None) -> str:
+    rows = stats_per_commit(events)
+    if stage:
+        groups = {p.subject: p.group for p in plan}
+        rows = [r for r in rows if groups.get(r.subject, "").lower().startswith(stage.lower())]
+    return table(rows)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="time and fixes per commit from the hook log")
+    parser.add_argument("--status", action="store_true", help="one line for the status bar")
+    parser.add_argument("--stage", help="only commits whose plan group starts with this")
+    parser.add_argument("--repo", type=Path, default=Path(), help="repository to read from")
+    args = parser.parse_args(argv)
+    plan = read_plan(args.repo / PLAN_PATH)
+    events = read_events(args.repo / EVENTS_PATH)
+    print(_status(args.repo, plan, events) if args.status else _rows(plan, events, args.stage))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

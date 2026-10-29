@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Logs whether a `git commit` run from Claude Code produced a commit.
+# Called with `before` (remember HEAD) and `after` (compare and log).
+set -euo pipefail
+cmd=$(jq -r '.tool_input.command // empty')
+[[ $cmd == *"git commit"* ]] || exit 0
+
+dir=.claude/metrics
+mkdir -p "$dir"
+head_now=$(git rev-parse --verify -q HEAD || echo none)
+
+case $1 in
+  before)
+    echo "$head_now" > "$dir/head"
+    ;;
+  after)
+    head_before=$(cat "$dir/head" 2>/dev/null || echo none)
+    if [[ $head_now == "$head_before" ]]; then
+      jq -nc '{ts: (now | todate), event: "commit_rejected"}' >> "$dir/events.jsonl"
+    else
+      jq -nc --arg sha "$head_now" --arg subject "$(git log -1 --format=%s)" \
+        '{ts: (now | todate), event: "commit", sha: $sha, subject: $subject}' >> "$dir/events.jsonl"
+    fi
+    ;;
+esac
