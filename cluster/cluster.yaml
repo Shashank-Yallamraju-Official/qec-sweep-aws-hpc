@@ -1,0 +1,44 @@
+Region: us-east-2
+Image:
+  Os: ubuntu2404
+Tags:
+  - Key: project
+    Value: qec-sweep
+
+# us-east-2b is the one zone here that also offers hpc7a, which the MPI queue needs later.
+HeadNode:
+  InstanceType: t3.medium
+  Networking:
+    SubnetId: subnet-0b765c6a2d2523330
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+    S3Access:
+      - BucketName: qec-sweep-results-523520772490
+        EnableWriteAccess: true
+
+Scheduling:
+  Scheduler: slurm
+  SlurmQueues:
+    - Name: sweep
+      ComputeResources:
+        - Name: c7a
+          InstanceType: c7a.large
+          MinCount: 0
+          MaxCount: 4
+      Networking:
+        SubnetIds:
+          - subnet-0b765c6a2d2523330
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        S3Access:
+          - BucketName: qec-sweep-results-523520772490
+            EnableWriteAccess: true
+
+SharedStorage:
+  - Name: scratch
+    StorageType: Efs
+    MountDir: /scratch
+    EfsSettings:
+      DeletionPolicy: Delete
