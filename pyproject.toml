@@ -3,6 +3,7 @@ name = "qec-sweep"
 version = "0.0.0"
 requires-python = ">=3.12"
 dependencies = [
+    "matplotlib>=3.11.2",
     "numpy>=2.5.4",
     "pyarrow>=26.0.0",
     "pymatching>=2.4.0",
@@ -23,6 +24,7 @@ dev = [
 [project.scripts]
 sweep = "sweep.cli:main"
 sweep-reduce = "sweep.reduce:main"
+sweep-plot = "sweep.plot:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -44,6 +46,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "tools/**" = ["T201", "S603", "S607"]
 "sweep/cli.py" = ["T201"]
 "sweep/reduce.py" = ["T201"]
+"sweep/plot.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
