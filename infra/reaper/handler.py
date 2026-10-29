@@ -101,7 +101,8 @@ def handler(_event: object, _context: object) -> dict[str, int]:
     while something is running, so a quiet account produces no mail.
 
     Returns:
-        Counts of running and reaped instances, visible in the invocation log.
+        How many instances were running and how many were stale enough to terminate;
+        whether the terminate succeeded is in the email, not here.
     """
     ec2 = boto3.client("ec2")
     now = datetime.now(UTC)

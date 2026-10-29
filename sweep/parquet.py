@@ -31,7 +31,7 @@ def write(result: CellResult, out_dir: Path) -> Path:
 
 
 def read(path: Path) -> CellResult:
-    """Read back a file written by :func:`write`."""
+    """Read back a file written by ``write()``."""
     row = pq.read_table(path).to_pylist()[0]
     cell = Cell(distance=row["distance"], noise=row["noise"], shots=row["shots"])
     return CellResult(cell=cell, errors=row["errors"], seconds=row["seconds"], seed=row["seed"])

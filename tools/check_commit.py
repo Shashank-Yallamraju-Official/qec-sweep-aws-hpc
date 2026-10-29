@@ -27,7 +27,8 @@ TRAILER = re.compile(r"^([A-Za-z]+-[A-Za-z-]+|Fixes|Closes|Refs|Resolves): \S")
 def check(message: str) -> list[str]:
     """Judge one commit message.
 
-    Comment lines, as left by the commit template, are ignored.
+    Lines starting with ``#`` are dropped first, as git itself drops them when it
+    cleans up a message, so the template's comments never count.
 
     Args:
         message: The full message, first line and optional body.
