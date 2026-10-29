@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from infra.reaper.handler import Instance, instance_from, stale, summary
+from infra.reaper.handler import Instance, instance_from, notable, stale, summary
 
 NOW = datetime(2026, 10, 29, 22, 0, tzinfo=UTC)
 MAX_AGE = timedelta(hours=4)
@@ -23,6 +23,16 @@ def test_stale_picks_instances_older_than_the_limit() -> None:
 def test_stale_leaves_cluster_members_to_the_cluster() -> None:
     member = node("i-head", 9, cluster="qec")
     assert stale([member], NOW, MAX_AGE) == []
+
+
+def test_notable_includes_every_instance_outside_a_cluster() -> None:
+    young = node("i-young", 0.1)
+    assert notable([young], NOW, MAX_AGE) == [young]
+
+
+def test_notable_includes_cluster_members_only_after_the_limit() -> None:
+    fresh, forgotten = node("i-head", 3, cluster="qec"), node("i-old-head", 9, cluster="qec")
+    assert notable([fresh, forgotten], NOW, MAX_AGE) == [forgotten]
 
 
 def test_summary_lists_uptime_and_what_was_terminated() -> None:
