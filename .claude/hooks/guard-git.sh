@@ -32,7 +32,7 @@ while IFS= read -r simple; do
       ;;
     switch | checkout)
       for a in "${args[@]+"${args[@]}"}"; do
-        [[ $a == main ]] && target=main
+        [[ $a == -* ]] || target=$a
       done
       ;;
   esac
