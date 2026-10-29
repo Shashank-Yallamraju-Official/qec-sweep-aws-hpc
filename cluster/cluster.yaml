@@ -5,22 +5,20 @@ Tags:
   - Key: project
     Value: qec-sweep
 
-# us-east-2b is the one zone here that also offers hpc7a, which the MPI queue needs later.
 HeadNode:
   InstanceType: t3.medium
   Networking:
-    SubnetId: subnet-0b765c6a2d2523330
-  Iam:
+    # us-east-2b is the one zone here that also offers hpc7a, for the MPI queue later.
+    SubnetId: &subnet subnet-0b765c6a2d2523330
+  Iam: &node-iam
     AdditionalIamPolicies:
-      - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-    S3Access:
-      - BucketName: qec-sweep-results-523520772490
-        EnableWriteAccess: true
+      # Put-only on the results bucket, owned by Terraform; results outlive the cluster.
+      - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-results
 
 Scheduling:
   Scheduler: slurm
   SlurmSettings:
-    # Compute nodes exist only while there is work; ten idle minutes and they are gone.
+    # The cost guardrail from the design: compute scales to zero after ten idle minutes.
     ScaledownIdletime: 10
   SlurmQueues:
     - Name: sweep
@@ -31,17 +29,14 @@ Scheduling:
           MaxCount: 4
       Networking:
         SubnetIds:
-          - subnet-0b765c6a2d2523330
-      Iam:
-        AdditionalIamPolicies:
-          - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-        S3Access:
-          - BucketName: qec-sweep-results-523520772490
-            EnableWriteAccess: true
+          - *subnet
+      Iam: *node-iam
 
 SharedStorage:
   - Name: scratch
     StorageType: Efs
     MountDir: /scratch
     EfsSettings:
+      # Bursting throughput is enough: a new file system starts with 2.1 TiB of burst
+      # credit, and each node reads the image once and keeps it in its page cache.
       DeletionPolicy: Delete
