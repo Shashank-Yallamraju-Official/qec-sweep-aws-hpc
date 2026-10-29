@@ -1,18 +1,22 @@
 Bootstrap: docker
-From: python:3.12.16-slim
+From: python@sha256:8523d6abeb48ceae0b7240d30c5808fc26cb79c1a635bacdf19cf3baecfbec07
 
-# The same Python and the same pinned packages as the hand-built node, with
-# the project installed on top, so a fresh machine reproduces a cell bit for bit.
+# python:3.12.16-slim by digest, the packages pinned on the hand-built node,
+# and the project as a wheel built outside the image, so no build backend
+# and nothing unpinned ever enters it. Two builds of one commit are the same.
 
 %files
     image/packages.txt /opt/sweep/packages.txt
-    pyproject.toml /opt/sweep/pyproject.toml
-    sweep /opt/sweep/sweep
+    dist/*.whl /opt/sweep/
 
 %post
-    pip install --no-cache-dir --quiet hatchling==1.33.0
     pip install --no-cache-dir --quiet --no-deps -r /opt/sweep/packages.txt
-    pip install --no-cache-dir --quiet --no-deps --no-build-isolation /opt/sweep
+    pip install --no-cache-dir --quiet --no-deps /opt/sweep/*.whl
+
+%environment
+    # The host's user site-packages and PYTHONPATH must not shadow the pinned ones.
+    export PYTHONNOUSERSITE=1
+    unset PYTHONPATH
 
 %runscript
     exec sweep "$@"
