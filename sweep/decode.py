@@ -51,9 +51,11 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
         after_reset_flip_probability=cell.noise,
     )
     syndromes, observables = circuit.compile_detector_sampler(seed=seed).sample(
-        cell.shots, separate_observables=True
+        cell.shots, separate_observables=True, bit_packed=True
     )
     model = circuit.detector_error_model(decompose_errors=True)
-    predictions = pymatching.Matching.from_detector_error_model(model).decode_batch(syndromes)
+    predictions = pymatching.Matching.from_detector_error_model(model).decode_batch(
+        syndromes, bit_packed_shots=True, bit_packed_predictions=True
+    )
     errors = int(np.any(predictions != observables, axis=1).sum())
     return CellResult(cell=cell, errors=errors, seconds=time.perf_counter() - start, seed=seed)
