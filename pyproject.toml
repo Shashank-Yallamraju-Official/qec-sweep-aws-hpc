@@ -16,6 +16,8 @@ dev = [
     "mypy>=1.14",
     "pytest>=8",
     "pyarrow-stubs>=20.0.0.20260819",
+    "boto3>=1.43.122",
+    "boto3-stubs[ec2,sns]>=1.43.122",
 ]
 
 [project.scripts]
@@ -52,7 +54,7 @@ max-statements = 30
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["sweep", "tools", "tests"]
+files = ["sweep", "tools", "infra", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
