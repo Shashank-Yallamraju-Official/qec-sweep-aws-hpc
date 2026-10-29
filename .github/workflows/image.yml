@@ -23,11 +23,12 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - run: SWEEP_IMAGE="$PWD/sweep.sif" uv run pytest tests/image
-      - if: github.ref == 'refs/heads/main'
-        env:
+      - env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/sweep"
           echo "$TOKEN" | apptainer registry login -u '${{ github.actor }}' --password-stdin oras://ghcr.io
-          apptainer push sweep.sif "oras://$name:${{ github.sha }}"
-          apptainer push sweep.sif "oras://$name:latest"
+          apptainer push sweep.sif "oras://$name:${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ '${{ github.ref }}' = refs/heads/main ]; then
+            apptainer push sweep.sif "oras://$name:latest"
+          fi
