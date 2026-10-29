@@ -27,6 +27,14 @@ PLANNED = re.compile(r"^(?P<position>\d+)\. `(?P<subject>.+)`$")
 
 @dataclass(frozen=True)
 class Event:
+    """One line of the event log written by the Claude Code hooks.
+
+    Attributes:
+        at: When it happened.
+        kind: ``edit``, ``test``, ``commit``, ``commit_rejected`` or ``session``.
+        data: The remaining fields of the line, such as ``file``, ``ok`` or ``subject``.
+    """
+
     at: datetime
     kind: str
     data: Mapping[str, object]
@@ -34,6 +42,8 @@ class Event:
 
 @dataclass(frozen=True)
 class PlannedCommit:
+    """One numbered commit from the plan, with the group heading it sits under."""
+
     group: str
     position: int
     subject: str
@@ -41,6 +51,8 @@ class PlannedCommit:
 
 @dataclass(frozen=True)
 class TaskStats:
+    """What it took to land one commit: time, edits, and how often the gate said no."""
+
     subject: str
     active: timedelta
     edits: int
@@ -50,6 +62,10 @@ class TaskStats:
 
 
 def read_events(path: Path) -> list[Event]:
+    """Read the event log, skipping any line that is not a well-formed event.
+
+    A missing file and a line truncated by a crash both yield fewer events, never an error.
+    """
     if not path.exists():
         return []
     events = []
@@ -65,6 +81,7 @@ def read_events(path: Path) -> list[Event]:
 
 
 def read_plan(path: Path) -> list[PlannedCommit]:
+    """Read the numbered commits of ``docs/plan.md`` under their ``###`` headings."""
     if not path.exists():
         return []
     plan = []
@@ -78,23 +95,35 @@ def read_plan(path: Path) -> list[PlannedCommit]:
 
 
 def committed_subjects(repo: Path) -> set[str]:
+    """Subject lines of every commit reachable from HEAD."""
     return set(_git(repo, "log", "--format=%s").splitlines())
 
 
 def current_branch(repo: Path) -> str:
+    """Name of the checked-out branch."""
     return _git(repo, "branch", "--show-current").strip()
 
 
 def current_task(plan: Sequence[PlannedCommit], done: AbstractSet[str]) -> PlannedCommit | None:
+    """The first planned commit whose subject is not yet in the history, if any."""
     return next((p for p in plan if p.subject not in done), None)
 
 
 def active_time(times: Sequence[datetime], idle_gap: timedelta = IDLE_GAP) -> timedelta:
+    """Time spanned by the timestamps, leaving out any gap longer than ``idle_gap``.
+
+    A break for lunch or overnight should not count against the task it interrupted.
+    """
     gaps = (later - earlier for earlier, later in pairwise(times))
     return sum((gap for gap in gaps if gap <= idle_gap), timedelta(0))
 
 
 def stats_per_commit(events: Sequence[Event]) -> list[TaskStats]:
+    """Statistics for each ``commit`` event, over the events since the previous one.
+
+    A task is taken to start when the previous commit landed, so that commit's
+    timestamp opens the next segment.
+    """
     rows = []
     start = 0
     for index, event in enumerate(events):
@@ -106,6 +135,7 @@ def stats_per_commit(events: Sequence[Event]) -> list[TaskStats]:
 
 
 def open_segment(events: Sequence[Event], subject: str, now: datetime) -> TaskStats:
+    """Statistics for the task in progress: everything since the last commit, up to ``now``."""
     last_commit = max((i for i, e in enumerate(events) if e.kind == "commit"), default=-1)
     segment = events[max(last_commit, 0) :]
     return _stats(subject, segment, now)
@@ -128,6 +158,10 @@ def _stats(subject: str, segment: Sequence[Event], now: datetime | None = None) 
 def status_line(
     branch: str, task: PlannedCommit | None, total: int, current: TaskStats | None
 ) -> str:
+    """One line for the Claude Code status bar: branch, next task, and the task's numbers so far.
+
+    Parts that are unknown are left out, so a fresh clone shows just the branch.
+    """
     parts = [branch]
     if task:
         parts.append(f"{task.position}/{total} {task.subject}")
@@ -140,6 +174,7 @@ def status_line(
 
 
 def table(rows: Sequence[TaskStats]) -> str:
+    """Markdown table of the rows, one commit per line, for pull request bodies and the README."""
     lines = [
         "| commit | active min | edits | edits rejected | tests failed | commit attempts |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
@@ -183,6 +218,14 @@ def stage_rows(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Print the status line (``--status``) or a table, optionally for one plan group.
+
+    Args:
+        argv: Arguments without the program name; ``None`` reads ``sys.argv``.
+
+    Returns:
+        Exit status, always 0; bad or missing data yields less output, never a failure.
+    """
     parser = argparse.ArgumentParser(description="time and fixes per commit from the hook log")
     parser.add_argument("--status", action="store_true", help="one line for the status bar")
     parser.add_argument("--stage", help="only commits whose plan group starts with this")
