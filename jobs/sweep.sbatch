@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# One array task decodes one grid cell inside the image; the task index picks the cell.
+# The submitter sets RUN_DIR, SWEEP_IMAGE and --output; see sweep.sh.
+#SBATCH --job-name=sweep
+#SBATCH --array=0-199
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:30:00
+set -euo pipefail
+: "${RUN_DIR:?}" "${SWEEP_IMAGE:?}"
+apptainer run --bind /scratch "$SWEEP_IMAGE" --index "$SLURM_ARRAY_TASK_ID" --out "$RUN_DIR/cells"
