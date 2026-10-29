@@ -1,0 +1,7 @@
+{
+  "distance": 5,
+  "noise": 0.001,
+  "shots": 100000,
+  "seed": 0,
+  "errors": 19
+}
