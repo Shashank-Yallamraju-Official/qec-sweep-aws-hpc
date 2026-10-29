@@ -1,14 +1,31 @@
 {
-  "attribution": { "commit": "", "pr": "" },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
-      "Bash(uv run *)", "Bash(uv sync*)", "Bash(uv lock*)", "Bash(uv add *)",
-      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git add *)",
-      "Bash(git commit *)", "Bash(git switch *)", "Bash(git push *)", "Bash(gh pr *)",
-      "Bash(terraform fmt*)", "Bash(terraform validate*)", "Bash(terraform plan*)"
+      "Bash(uv run *)",
+      "Bash(uv sync*)",
+      "Bash(uv lock*)",
+      "Bash(uv add *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch *)",
+      "Bash(git push *)",
+      "Bash(gh pr *)",
+      "Bash(terraform fmt*)",
+      "Bash(terraform validate*)",
+      "Bash(terraform plan*)"
     ],
     "ask": [
-      "Bash(terraform apply*)", "Bash(terraform destroy*)", "Bash(pcluster *)", "Bash(aws *)"
+      "Bash(terraform apply*)",
+      "Bash(terraform destroy*)",
+      "Bash(pcluster *)",
+      "Bash(aws *)"
     ]
   },
   "hooks": {
@@ -16,7 +33,15 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/guard-git.sh", "onFailure": "block" }
+          {
+            "type": "command",
+            "command": ".claude/hooks/guard-git.sh",
+            "onFailure": "block"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/record-commit.sh before"
+          }
         ]
       }
     ],
@@ -24,9 +49,37 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": ".claude/hooks/check-file.sh", "timeout": 120 }
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-file.sh",
+            "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/record-commit.sh after"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p .claude/metrics && jq -nc --arg b \"$(git branch --show-current)\" '{ts: (now | todate), event: \"session\", branch: $b}' >> .claude/metrics/events.jsonl"
+          }
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "uv run python tools/process_report.py --status",
+    "refreshInterval": 30
   }
 }
