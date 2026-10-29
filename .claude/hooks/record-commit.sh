@@ -4,7 +4,15 @@
 set -euo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}"
 cmd=$(jq -r '.tool_input.command // empty')
-[[ $cmd == *"git commit"* ]] || exit 0
+# shellcheck source=.claude/hooks/git-command.sh
+source "$(dirname "$0")/git-command.sh"
+commits=no
+while IFS= read -r simple; do
+  read -r -a words <<<"$simple"
+  parse_git
+  [[ $sub == commit ]] && commits=yes
+done < <(split_commands "$cmd")
+[[ $commits == yes ]] || exit 0
 
 dir=.claude/metrics
 mkdir -p "$dir"

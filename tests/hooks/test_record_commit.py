@@ -33,3 +33,20 @@ def test_ignores_commands_that_do_not_commit(project: Path) -> None:
     run_hook(project, "record-commit.sh", {"command": "git status"}, "before")
     run_hook(project, "record-commit.sh", {"command": "git status"}, "after")
     assert events(project) == []
+
+
+@pytest.mark.parametrize(
+    "command", ['echo "git commit"', "cat <<EOF\nmentioned 'git commit' in prose\nEOF"]
+)
+def test_ignores_commands_that_only_mention_a_commit(project: Path, command: str) -> None:
+    run_hook(project, "record-commit.sh", {"command": command}, "before")
+    run_hook(project, "record-commit.sh", {"command": command}, "after")
+    assert events(project) == []
+
+
+def test_logs_a_commit_run_with_global_options(project: Path) -> None:
+    command = {"command": "git -c user.name=x commit -m y"}
+    run_hook(project, "record-commit.sh", command, "before")
+    git(project, "commit", "-q", "--allow-empty", "-m", "feat(sweep): b")
+    run_hook(project, "record-commit.sh", command, "after")
+    assert [e["event"] for e in events(project)] == ["commit"]
