@@ -3,9 +3,9 @@ name: image
 on:
   push:
     branches: [main]
-    paths: [image/**, sweep/**, pyproject.toml, .github/workflows/image.yml]
+    paths: [image/**, sweep/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
   pull_request:
-    paths: [image/**, sweep/**, pyproject.toml, .github/workflows/image.yml]
+    paths: [image/**, sweep/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
 
 permissions:
   contents: read
@@ -16,14 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The pull request's own commit, not GitHub's merge of it, so the sha tag is honest.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync && uv build --wheel
       - uses: eWaterCycle/setup-apptainer@v2
         with:
           apptainer-version: 1.4.1
       - run: sudo apptainer build sweep.sif image/sweep.def && sudo chown "$USER" sweep.sif
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync
       - run: SWEEP_IMAGE="$PWD/sweep.sif" uv run pytest tests/image
-      - env:
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/sweep"
