@@ -1,5 +1,6 @@
-# Every package on the hand-built node that ran the first cell to S3:
+# Every third-party package on the hand-built node that ran the first cell to S3:
 # c7a.large, ami-0c7dc2f4e28e6e66e (Amazon Linux 2023), uv 0.13.6, Python 3.12.16.
+# The project itself is installed from source on top of this list.
 contourpy==1.4.0
 cycler==0.12.1
 fonttools==4.68.0
@@ -13,7 +14,6 @@ pyarrow==26.0.0
 pymatching==2.4.0
 pyparsing==3.3.3
 python-dateutil==3.0.0
-qec-sweep==0.0.0
 scipy==1.18.1
 six==1.17.0
 stim==1.16.0
