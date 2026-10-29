@@ -128,3 +128,8 @@ def test_accepts_one_line_body_that_looks_like_a_label(body: str) -> None:
 def test_rejects_known_trailers(trailer: str) -> None:
     (problem,) = check(f"feat(sweep): add x\n\n{trailer}")
     assert "trailer" in problem
+
+
+@pytest.mark.parametrize("scope", ["hooks", "ci", "docs"])
+def test_accepts_scopes_for_hooks_ci_and_docs(scope: str) -> None:
+    assert check(f"fix({scope}): add x") == []

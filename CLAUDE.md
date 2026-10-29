@@ -4,7 +4,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 
 ## Working
 - One branch per stage, `stage-NN-<scope>`, merged by rebase through a pull request. Never commit on main.
-- Commits follow docs/plan.md. The only unplanned commits are `fix(<scope>): ...`.
+- Commits follow docs/plan.md. The only unplanned commits are fixes, scoped to the directory they touch.
 - `uv run pre-commit run --all-files` and `uv run pytest` pass before every commit; the hooks refuse otherwise.
 - Run /code-review on the branch before opening its pull request.
 

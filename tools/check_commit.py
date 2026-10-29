@@ -13,7 +13,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 TYPES = frozenset({"feat", "fix", "refactor", "perf", "test", "build", "ci", "docs", "chore"})
-SCOPES = frozenset({"sweep", "mpi", "jobs", "cluster", "image", "infra", "tools", "metrics"})
+SCOPES = frozenset(
+    {"sweep", "mpi", "jobs", "cluster", "image", "infra", "tools", "metrics", "hooks", "ci", "docs"}
+)
 SUBJECT_LIMIT = 60
 BODY_WIDTH = 72
 NON_IMPERATIVE = re.compile(r"^(add|fix|updat|remov|chang|mov)(ed|es|ing|s)$")
