@@ -41,68 +41,70 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 12. `feat(infra): add terraform for the results bucket`
 13. `feat(infra): add budget alerts at 20 and 50 usd a month`
 14. `feat(infra): tag every resource for cost allocation`
+15. `feat(infra): reap stale instances and email while any run`
 
 ### Stage 2, one node by hand
 
-15. `build(image): pin the packages from the hand-built node`
-16. `feat(jobs): run one cell on a node and copy the result to s3`
+16. `feat(infra): add an instance profile for nodes`
+17. `build(image): pin the packages from the hand-built node`
+18. `feat(jobs): run one cell on a node and copy the result to s3`
 
 ### Stage 3, frozen environment
 
-17. `build(image): add apptainer definition from pinned packages`
-18. `ci(image): build the image on pull request, publish on main`
-19. `test(image): reproduce the hand-built cell from the image`
-20. `docs(metrics): record time to reproduce the environment`
+19. `build(image): add apptainer definition from pinned packages`
+20. `ci(image): build the image on pull request, publish on main`
+21. `test(image): reproduce the hand-built cell from the image`
+22. `docs(metrics): record time to reproduce the environment`
 
 ### Stage 4, cluster
 
-21. `feat(cluster): add head node, one queue and fsx scratch`
-22. `feat(cluster): scale compute to zero after ten minutes idle`
-23. `feat(jobs): add smoke job running hostname across two nodes`
-24. `docs(metrics): record time to first node`
+23. `feat(cluster): add head node, one queue and fsx scratch`
+24. `feat(cluster): scale compute to zero after ten minutes idle`
+25. `feat(jobs): add smoke job running hostname across two nodes`
+26. `docs(metrics): record time to first node`
 
 ### Stage 5, job array
 
-25. `feat(sweep): map an array task index to a grid cell`
-26. `feat(jobs): submit the grid as a slurm array`
-27. `feat(jobs): sync results from fsx to s3 when the array exits`
-28. `feat(sweep): reduce cell results into one table`
-29. `feat(sweep): plot logical error rate by distance`
-30. `docs(metrics): record sweep wall-clock against a laptop`
+27. `feat(sweep): map an array task index to a grid cell`
+28. `feat(jobs): submit the grid as a slurm array`
+29. `feat(jobs): sync results from fsx to s3 when the array exits`
+30. `feat(sweep): reduce cell results into one table`
+31. `feat(sweep): plot logical error rate by distance`
+32. `docs(metrics): record sweep wall-clock against a laptop`
 
 ### Stage 6, scale and cost
 
-31. `feat(jobs): tag every job for cost allocation`
-32. `feat(cluster): add a spot queue beside on-demand`
-33. `feat(tools): report cost per sweep from cost explorer by tag`
-34. `docs(metrics): record weak scaling and cost per sweep`
+33. `feat(jobs): tag every job for cost allocation`
+34. `feat(cluster): add a spot queue beside on-demand`
+35. `feat(tools): report cost per sweep from cost explorer by tag`
+36. `docs(metrics): record weak scaling and cost per sweep`
 
 ### Stage 7, tight coupling
 
-35. `feat(mpi): shard a state vector across ranks`
-36. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
-37. `test(mpi): match sharded amplitudes to a single-rank run`
-38. `feat(cluster): add an efa-enabled hpc7a queue`
-39. `feat(jobs): submit the state-vector run across ranks`
-40. `perf(mpi): move the gate kernel to c++`
-41. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
+37. `feat(mpi): shard a state vector across ranks`
+38. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
+39. `test(mpi): match sharded amplitudes to a single-rank run`
+40. `feat(cluster): add an efa-enabled hpc7a queue`
+41. `feat(jobs): submit the state-vector run across ranks`
+42. `perf(mpi): move the gate kernel to c++`
+43. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
 
 ### Stage 8, cluster as versioned artifact
 
-42. `ci(cluster): validate the cluster config on pull request`
-43. `ci(cluster): run the smoke job on pull request`
-44. `ci(cluster): update the running cluster on merge to main`
-45. `ci(infra): plan terraform on pull request, apply on main`
-46. `docs(metrics): record changes shipped without ssh`
+44. `ci(cluster): validate the cluster config on pull request`
+45. `ci(cluster): run the smoke job on pull request`
+46. `ci(cluster): update the running cluster on merge to main`
+47. `ci(infra): plan terraform on pull request, apply on main`
+48. `docs(metrics): record changes shipped without ssh`
 
 ### Stage 9, graphical node
 
-47. `feat(cluster): add a dcv-enabled login node`
-48. `feat(cluster): install paraview on the login node`
+49. `feat(cluster): add a dcv-enabled login node`
+50. `feat(cluster): install paraview on the login node`
 
 ### Stage 10, write-up
 
-49. `docs: add readme with architecture, metrics and what broke`
+51. `docs: add readme with architecture, metrics and what broke`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
