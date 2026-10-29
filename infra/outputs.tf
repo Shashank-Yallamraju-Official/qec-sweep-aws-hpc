@@ -5,3 +5,7 @@ output "results_bucket" {
 output "node_instance_profile" {
   value = aws_iam_instance_profile.node.name
 }
+
+output "node_results_policy" {
+  value = aws_iam_policy.node_results.arn
+}
