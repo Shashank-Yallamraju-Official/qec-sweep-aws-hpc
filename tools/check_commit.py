@@ -25,6 +25,16 @@ TRAILER = re.compile(r"^([A-Za-z]+-[A-Za-z-]+|Fixes|Closes|Refs|Resolves): \S")
 
 
 def check(message: str) -> list[str]:
+    """Judge one commit message.
+
+    Comment lines, as left by the commit template, are ignored.
+
+    Args:
+        message: The full message, first line and optional body.
+
+    Returns:
+        One plain-words problem per rule broken; empty when the message is fine.
+    """
     lines = [line for line in message.splitlines() if not line.startswith("#")]
     while lines and not lines[-1].strip():
         lines.pop()
@@ -79,6 +89,7 @@ def _check_body(rest: Sequence[str]) -> list[str]:
 
 
 def messages_in_range(revision_range: str, repo: Path) -> list[str]:
+    """Full messages of the commits in a git revision range, newest first."""
     output = subprocess.run(
         ["git", "log", "--format=%B%x00", revision_range],
         cwd=repo,
@@ -100,6 +111,14 @@ def _report(label: str, problems: Sequence[str]) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Check a message file, a revision range, or standard input.
+
+    Args:
+        argv: Arguments without the program name; ``None`` reads ``sys.argv``.
+
+    Returns:
+        Exit status: 0 when every message passes, 1 otherwise, with problems on stdout.
+    """
     parser = argparse.ArgumentParser(description="check commit messages against the house format")
     parser.add_argument("path", nargs="?", help="file holding one commit message")
     parser.add_argument("--range", dest="revision_range", help="git revision range to check")
