@@ -121,6 +121,6 @@ One rulebook, run from three places. `.pre-commit-config.yaml` and `tools/check_
 
 - One branch per stage, `stage-NN-<scope>`. Commits follow this list in order.
 - A commit message is `<type>(<scope>): <subject>`, the scope being a top-level directory (sweep, mpi, jobs, cluster, image, infra, tools, metrics, hooks, ci, docs) or omitted for repo-wide changes: first line at most 60 characters, imperative, lowercase, no full stop; body only when the diff cannot say why; no trailers. `tools/check_commit.py` is the rule and the hook runs it.
-- Python is checked by ruff with every rule on, mypy strict, and pytest. Shell by shellcheck, YAML by yamllint, workflows by actionlint. Terraform by `terraform fmt` and `validate` from the first infra commit.
+- Python is checked by ruff with every rule on, including Google-style docstrings on everything public, mypy strict, and pytest. Shell by shellcheck, YAML by yamllint, workflows by actionlint. Terraform by `terraform fmt` and `validate` from the first infra commit.
 - Infrastructure is Terraform under `infra/`, state in S3. The state bucket `qec-sweep-tfstate-<account>` is the one resource made by hand, once, with versioning on.
 - Process is measured. Claude Code hooks log each edit, test run and commit attempt; `tools/process_report.py` turns the log into active minutes, edits, rejected edits and commit attempts per commit. Each stage's pull request carries its table; the README carries one row per stage.
