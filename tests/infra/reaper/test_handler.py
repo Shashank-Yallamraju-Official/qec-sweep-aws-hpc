@@ -36,6 +36,11 @@ def test_summary_without_terminations_says_so() -> None:
     assert summary([node("i-a", 1)], [], NOW).strip().endswith("terminated: none")
 
 
+def test_summary_reports_a_failed_termination() -> None:
+    text = summary([node("i-b", 5)], [node("i-b", 5)], NOW, failure="not authorised")
+    assert text.strip().endswith("terminate failed (i-b): not authorised")
+
+
 def test_instance_from_reads_the_cluster_tag() -> None:
     raw = {
         "InstanceId": "i-1",
