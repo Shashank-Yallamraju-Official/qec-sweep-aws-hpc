@@ -35,12 +35,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/guard-git.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-git.sh",
             "onFailure": "block"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/record-commit.sh before"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-commit.sh before"
           }
         ]
       }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-file.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-file.sh",
             "timeout": 120
           }
         ]
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/record-commit.sh after"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-commit.sh after"
           }
         ]
       }
@@ -71,7 +71,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p .claude/metrics && jq -nc --arg b \"$(git branch --show-current)\" '{ts: (now | todate), event: \"session\", branch: $b}' >> .claude/metrics/events.jsonl"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && mkdir -p .claude/metrics && jq -nc --arg b \"$(git branch --show-current)\" '{ts: (now | todate), event: \"session\", branch: $b}' >> .claude/metrics/events.jsonl"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-commit.sh after"
           }
         ]
       }
@@ -79,7 +90,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "uv run python tools/process_report.py --status",
+    "command": "cd \"$(jq -r '.workspace.project_dir // .cwd')\" && uv run python tools/process_report.py --status",
     "refreshInterval": 30
   }
 }
