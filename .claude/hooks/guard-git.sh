@@ -20,7 +20,7 @@ while IFS= read -r simple; do
     commit)
       [[ $hooks_off == yes ]] && refuse "hooks are not optional"
       for a in "${args[@]+"${args[@]}"}"; do
-        [[ $a == --no-verify || $a =~ ^-[a-zA-Z]*n[a-zA-Z]*$ ]] && refuse "hooks are not optional"
+        [[ $a == --no-v* || $a =~ ^-[a-zA-Z]*n[a-zA-Z]*$ ]] && refuse "hooks are not optional"
       done
       [[ $target == main ]] && refuse "main takes pull requests only"
       ;;

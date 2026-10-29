@@ -1,10 +1,11 @@
 # shellcheck shell=bash
 # Shared by the hooks that inspect a shell command for git subcommands.
-# split_commands prints each simple command on its own line. parse_git
+# split_commands prints each simple command on its own line, opening
+# subshells and groups as well as the usual separators. parse_git
 # reads the array `words` and sets sub, args and hooks_off; sub is empty
 # when the words are not a git command.
 
-split_commands() { sed -E 's/&&|\|\||;|\|/\n/g' <<<"$1"; }
+split_commands() { sed -E 's/&&|\|\||;|\||\(|\{/\n/g' <<<"$1"; }
 
 # shellcheck disable=SC2034  # sub, args and hooks_off are set for the caller
 parse_git() {

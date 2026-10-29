@@ -22,6 +22,10 @@ def guard(repo: Path, command: str) -> int:
         "git push origin HEAD -uf",
         "git switch main && git commit -m x",
         "git checkout main && git push",
+        "(git commit --no-verify -m x)",
+        "{ git push --force; }",
+        "echo $(git commit --no-verify -m x)",
+        "git commit --no-v -m x",
     ],
 )
 def test_refuses_bypasses(project: Path, command: str) -> None:

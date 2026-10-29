@@ -44,8 +44,9 @@ def test_ignores_commands_that_only_mention_a_commit(project: Path, command: str
     assert events(project) == []
 
 
-def test_logs_a_commit_run_with_global_options(project: Path) -> None:
-    command = {"command": "git -c user.name=x commit -m y"}
+@pytest.mark.parametrize("line", ["git -c user.name=x commit -m y", "(git commit -m y)"])
+def test_logs_a_commit_with_global_options_or_in_a_subshell(project: Path, line: str) -> None:
+    command = {"command": line}
     run_hook(project, "record-commit.sh", command, "before")
     git(project, "commit", "-q", "--allow-empty", "-m", "feat(sweep): b")
     run_hook(project, "record-commit.sh", command, "after")
