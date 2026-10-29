@@ -1,0 +1,7 @@
+# <type>(<scope>): <subject>
+#
+# type   feat fix refactor perf test build ci docs chore
+# scope  sweep mpi jobs cluster image infra tools metrics   (omit for repo-wide)
+# subject: imperative, lowercase, no full stop; whole first line at most 60
+#
+# Body only when the diff cannot say why. Prose wrapped at 72. No trailers.
