@@ -2,7 +2,11 @@
 name = "qec-sweep"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.4",
+    "pymatching>=2.4.0",
+    "stim>=1.16.0",
+]
 
 [dependency-groups]
 dev = ["pre-commit>=4", "ruff>=0.9", "mypy>=1.14", "pytest>=8"]
@@ -39,3 +43,7 @@ files = ["sweep", "tools", "tests"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+
+[[tool.mypy.overrides]]
+module = ["stim", "pymatching"]
+ignore_missing_imports = true
