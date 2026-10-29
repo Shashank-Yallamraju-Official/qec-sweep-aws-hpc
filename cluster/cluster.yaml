@@ -19,6 +19,9 @@ HeadNode:
 
 Scheduling:
   Scheduler: slurm
+  SlurmSettings:
+    # Compute nodes exist only while there is work; ten idle minutes and they are gone.
+    ScaledownIdletime: 10
   SlurmQueues:
     - Name: sweep
       ComputeResources:
