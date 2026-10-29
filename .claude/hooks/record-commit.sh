@@ -31,10 +31,10 @@ case $1 in
     head_before=$(cat "$dir/head" 2>/dev/null || echo none)
     if [[ $head_now == "$head_before" ]]; then
       jq -nc '{ts: (now | todate), event: "commit_rejected"}' >> "$dir/events.jsonl"
-    elif [[ $head_before == none ]]; then
-      log_commit "$head_now"
     else
-      for sha in $(git rev-list --reverse "$head_before..$head_now"); do log_commit "$sha"; done
+      range=$head_now
+      [[ $head_before == none ]] || range="$head_before..$head_now"
+      for sha in $(git rev-list --reverse "$range"); do log_commit "$sha"; done
     fi
     ;;
 esac

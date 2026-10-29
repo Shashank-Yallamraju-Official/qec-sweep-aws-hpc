@@ -52,6 +52,15 @@ def test_logs_every_commit_a_command_makes(project: Path) -> None:
     assert [e["subject"] for e in events(project)] == ["feat(sweep): first", "feat(sweep): second"]
 
 
+def test_logs_every_commit_when_there_was_no_head(tmp_path: Path) -> None:
+    git(tmp_path, "init", "-q", "-b", "work")
+    run_hook(tmp_path, "record-commit.sh", COMMIT, "before")
+    git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: first")
+    git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: second")
+    run_hook(tmp_path, "record-commit.sh", COMMIT, "after")
+    assert [e["subject"] for e in events(tmp_path)] == ["chore: first", "chore: second"]
+
+
 @pytest.mark.parametrize("line", ["git -c user.name=x commit -m y", "(git commit -m y)"])
 def test_logs_a_commit_with_global_options_or_in_a_subshell(project: Path, line: str) -> None:
     command = {"command": line}
