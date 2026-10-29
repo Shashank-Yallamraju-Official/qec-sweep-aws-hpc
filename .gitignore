@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.remember/
+.claude/settings.local.json
+.claude/metrics/
+*.parquet
+.DS_Store
