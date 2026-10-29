@@ -18,9 +18,9 @@ HeadNode:
       # Read-only, for the configure script below.
       - BucketName: qec-sweep-results-523520772490
         KeyName: cluster/*
-  CustomActions:
+  CustomActions: &configure
     OnNodeConfigured:
-      # A fresh EFS mount is root-owned; users need to write to scratch.
+      # Installs Apptainer and makes scratch writable; see the script.
       Script: s3://qec-sweep-results-523520772490/cluster/on-node-configured.sh
 
 Scheduling:
@@ -39,6 +39,7 @@ Scheduling:
         SubnetIds:
           - *subnet
       Iam: *node-iam
+      CustomActions: *configure
 
 SharedStorage:
   - Name: scratch
