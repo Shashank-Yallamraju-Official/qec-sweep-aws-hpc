@@ -22,6 +22,7 @@ dev = [
 
 [project.scripts]
 sweep = "sweep.cli:main"
+sweep-reduce = "sweep.reduce:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -42,6 +43,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "tests/**" = ["D", "S101", "PLR2004", "S603", "S607", "TRY003", "EM101"]
 "tools/**" = ["T201", "S603", "S607"]
 "sweep/cli.py" = ["T201"]
+"sweep/reduce.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

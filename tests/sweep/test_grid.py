@@ -1,7 +1,7 @@
 import pytest
-from sweep.grid import GRID, Grid
 
 from sweep.cell import Cell
+from sweep.grid import GRID, Grid
 
 
 def test_grid_enumerates_every_distance_for_each_noise_rate() -> None:
