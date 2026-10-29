@@ -10,7 +10,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 
 ## Code
 - A name says what the thing is for. If a name needs a comment, rename it.
-- Every public module, class and function has a Google-style docstring that says what it is for; ruff enforces the style. No comment that restates the code. A comment says why, or it goes.
+- Every public module, class and function outside tests has a Google-style docstring that says what it is for; ruff enforces it. No comment that restates the code. A comment says why, or it goes.
 - One concern per module. A function fits on one screen.
 - Interfaces are typed and narrow. A dataclass over a dict with known keys.
 - Prose lives in docs/design.md, docs/plan.md and the final README. Nowhere else.
