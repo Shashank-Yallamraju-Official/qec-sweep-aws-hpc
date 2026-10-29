@@ -1,3 +1,5 @@
+"""One Parquet file per cell, named by the cell, so tasks are idempotent and retryable."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,6 +12,15 @@ from sweep.decode import CellResult
 
 
 def write(result: CellResult, out_dir: Path) -> Path:
+    """Write a result as a single-row Parquet file named by its cell.
+
+    Args:
+        result: What to write.
+        out_dir: Directory for the file, created if missing.
+
+    Returns:
+        The path written, ``<out_dir>/<cell name>.parquet``; an existing file is replaced.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{result.cell.name}.parquet"
     # A reclaimed node must not leave a half-written file under the cell's name.
@@ -20,6 +31,7 @@ def write(result: CellResult, out_dir: Path) -> Path:
 
 
 def read(path: Path) -> CellResult:
+    """Read back a file written by :func:`write`."""
     row = pq.read_table(path).to_pylist()[0]
     cell = Cell(distance=row["distance"], noise=row["noise"], shots=row["shots"])
     return CellResult(cell=cell, errors=row["errors"], seconds=row["seconds"], seed=row["seed"])

@@ -1,3 +1,5 @@
+"""Sampling and decoding of one cell: Stim samples, PyMatching decodes."""
+
 from __future__ import annotations
 
 import time
@@ -15,6 +17,15 @@ Z_95 = 1.96
 
 @dataclass(frozen=True)
 class CellResult:
+    """What decoding one cell produced.
+
+    Attributes:
+        cell: The cell that was decoded.
+        errors: Shots whose decoded correction disagreed with the true logical observable.
+        seconds: Wall-clock time of sampling plus decoding.
+        seed: Sampler seed, kept so the result can be reproduced bit for bit.
+    """
+
     cell: Cell
     errors: int
     seconds: float
@@ -22,14 +33,26 @@ class CellResult:
 
     @property
     def logical_error_rate(self) -> float:
+        """Fraction of shots that ended in a logical error."""
         return self.errors / self.cell.shots
 
     @property
     def interval(self) -> tuple[float, float]:
+        """95% Wilson score interval around the logical error rate."""
         return wilson_interval(self.errors, self.cell.shots)
 
 
 def wilson_interval(errors: int, shots: int, z: float = Z_95) -> tuple[float, float]:
+    """Wilson score interval for a proportion, well behaved at zero and at small counts.
+
+    Args:
+        errors: Successes counted, here logical errors.
+        shots: Trials.
+        z: Standard-normal quantile for the confidence level; 1.96 gives 95%.
+
+    Returns:
+        The lower and upper bounds, clamped to [0, 1].
+    """
     rate = errors / shots
     denominator = 1 + z**2 / shots
     centre = (rate + z**2 / (2 * shots)) / denominator
@@ -40,6 +63,19 @@ def wilson_interval(errors: int, shots: int, z: float = Z_95) -> tuple[float, fl
 
 
 def decode(cell: Cell, seed: int = 0) -> CellResult:
+    """Sample a cell's syndromes with Stim and decode them with PyMatching.
+
+    The circuit is Stim's rotated memory-Z surface code with as many rounds as
+    the distance and the cell's noise rate on every channel. Samples are kept
+    bit-packed so a large cell stays under a byte per detector-shot.
+
+    Args:
+        cell: What to simulate.
+        seed: Sampler seed; the same seed gives the same result.
+
+    Returns:
+        The error count with its timing, from which the rate and interval follow.
+    """
     start = time.perf_counter()
     circuit = stim.Circuit.generated(
         "surface_code:rotated_memory_z",
