@@ -55,6 +55,15 @@ def stale(instances: Sequence[Instance], now: datetime, max_age: timedelta) -> l
     return [i for i in instances if i.cluster is None and now - i.launched > max_age]
 
 
+def notable(instances: Sequence[Instance], now: datetime, max_age: timedelta) -> list[Instance]:
+    """Instances worth an email: any outside a cluster, and cluster members past ``max_age``.
+
+    A cluster is expected to be up for a working session, so it only earns a
+    nag once it looks forgotten.
+    """
+    return [i for i in instances if i.cluster is None or now - i.launched > max_age]
+
+
 def summary(
     running: Sequence[Instance],
     reaped: Sequence[Instance],
@@ -98,7 +107,8 @@ def handler(_event: object, _context: object) -> dict[str, int]:
     """Lambda entry point, run hourly by EventBridge.
 
     Reads ``TOPIC_ARN`` and ``MAX_HOURS`` from the environment. Emails only
-    while something is running, so a quiet account produces no mail.
+    when something is notable, so a quiet account and a cluster within its
+    working session produce no mail.
 
     Returns:
         How many instances were running and how many were stale enough to terminate;
@@ -107,9 +117,10 @@ def handler(_event: object, _context: object) -> dict[str, int]:
     ec2 = boto3.client("ec2")
     now = datetime.now(UTC)
     running = running_instances(ec2)
-    reaped = stale(running, now, timedelta(hours=float(os.environ.get("MAX_HOURS", "4"))))
+    max_age = timedelta(hours=float(os.environ.get("MAX_HOURS", "4")))
+    reaped = stale(running, now, max_age)
     failure = _terminate(ec2, reaped) if reaped else None
-    if running:
+    if notable(running, now, max_age):
         boto3.client("sns").publish(
             TopicArn=os.environ["TOPIC_ARN"],
             Subject=f"{PROJECT}: {len(running)} instance(s) running",
