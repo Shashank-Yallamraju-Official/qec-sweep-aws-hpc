@@ -26,3 +26,9 @@ def test_rejects_noise_outside_unit_interval(noise: float) -> None:
 def test_rejects_non_positive_shots() -> None:
     with pytest.raises(ValueError, match="positive"):
         Cell(distance=3, noise=0.01, shots=0)
+
+
+def test_name_distinguishes_close_noise_rates() -> None:
+    close = Cell(distance=5, noise=0.00126896, shots=10).name
+    closer = Cell(distance=5, noise=0.001268961, shots=10).name
+    assert close != closer

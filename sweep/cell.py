@@ -26,4 +26,4 @@ class Cell:
 
     @property
     def name(self) -> str:
-        return f"d{self.distance}_p{self.noise:g}_s{self.shots}"
+        return f"d{self.distance}_p{self.noise!r}_s{self.shots}"
