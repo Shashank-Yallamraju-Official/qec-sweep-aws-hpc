@@ -8,7 +8,7 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 | --- | --- | --- | --- |
 | 1 | The unit of work: one call, one cell, one Parquet file | Runs locally against a local path | none; fixes the contract |
 | 2 | One node by hand | A file lands in S3 and every installed package is written down | the package list |
-| 3 | Frozen environment as an Apptainer image | A bit-identical result from a fresh instance using only the image | time to reproduce, under 10 min |
+| 3 | Frozen environment as an Apptainer image | A bit-identical result from a fresh instance using only the image | time to reproduce, under 10 min: **3.7 min** from launching a fresh Ubuntu node to the identical result in S3, 50 s of which was installing Apptainer, pulling the image and running the cell |
 | 4 | ParallelCluster with one queue and FSx scratch | Nodes appear when a job queues and vanish ten minutes after idle | time to first node, under 5 min |
 | 5 | Job array for the sweep | The full grid completes and a logical-error-rate plot comes out | sweep wall-clock against a laptop |
 | 6 | Scale and cost | A weak-scaling table and a cost-per-sweep figure | throughput per node; dollars per sweep |
