@@ -26,9 +26,16 @@ data "aws_iam_policy_document" "node_results" {
   }
 }
 
-resource "aws_iam_role_policy" "node_results" {
-  role   = aws_iam_role.node.id
+# A managed policy so the cluster's own node roles can attach the same put-only
+# access instead of a broader one of their own.
+resource "aws_iam_policy" "node_results" {
+  name   = "qec-sweep-node-results"
   policy = data.aws_iam_policy_document.node_results.json
+}
+
+resource "aws_iam_role_policy_attachment" "node_results" {
+  role       = aws_iam_role.node.name
+  policy_arn = aws_iam_policy.node_results.arn
 }
 
 resource "aws_iam_instance_profile" "node" {
