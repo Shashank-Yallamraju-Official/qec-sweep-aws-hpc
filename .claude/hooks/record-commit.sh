@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Logs whether a `git commit` run from Claude Code produced a commit.
+# Logs whether a `git commit` run from Claude Code produced commits.
 # Called with `before` (remember HEAD) and `after` (compare and log).
 set -euo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}"
@@ -18,6 +18,11 @@ dir=.claude/metrics
 mkdir -p "$dir"
 head_now=$(git rev-parse --verify -q HEAD || echo none)
 
+log_commit() {
+  jq -nc --arg sha "$1" --arg subject "$(git log -1 --format=%s "$1")" \
+    '{ts: (now | todate), event: "commit", sha: $sha, subject: $subject}' >> "$dir/events.jsonl"
+}
+
 case $1 in
   before)
     echo "$head_now" > "$dir/head"
@@ -26,9 +31,10 @@ case $1 in
     head_before=$(cat "$dir/head" 2>/dev/null || echo none)
     if [[ $head_now == "$head_before" ]]; then
       jq -nc '{ts: (now | todate), event: "commit_rejected"}' >> "$dir/events.jsonl"
+    elif [[ $head_before == none ]]; then
+      log_commit "$head_now"
     else
-      jq -nc --arg sha "$head_now" --arg subject "$(git log -1 --format=%s)" \
-        '{ts: (now | todate), event: "commit", sha: $sha, subject: $subject}' >> "$dir/events.jsonl"
+      for sha in $(git rev-list --reverse "$head_before..$head_now"); do log_commit "$sha"; done
     fi
     ;;
 esac
