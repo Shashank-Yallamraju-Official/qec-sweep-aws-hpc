@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pyarrow.parquet as pq
+import pytest
 
 from sweep.cell import Cell
 from sweep.decode import CellResult
@@ -35,3 +36,16 @@ def test_columns_are_flat_and_named(tmp_path: Path) -> None:
         "seconds",
         "seed",
     ]
+
+
+def test_a_failed_write_leaves_nothing_under_the_cell_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def partial_write(_table: object, where: Path) -> None:
+        where.write_bytes(b"PAR1 truncated")
+        raise OSError("node reclaimed")
+
+    monkeypatch.setattr("sweep.parquet.pq.write_table", partial_write)
+    with pytest.raises(OSError, match="reclaimed"):
+        write(RESULT, tmp_path)
+    assert not (tmp_path / "d5_p0.001_s100000.parquet").exists()

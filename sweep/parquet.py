@@ -12,8 +12,10 @@ from sweep.decode import CellResult
 def write(result: CellResult, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{result.cell.name}.parquet"
-    low, high = result.interval
-    pq.write_table(pa.Table.from_pylist([_row(result, low, high)]), path)
+    # A reclaimed node must not leave a half-written file under the cell's name.
+    partial = path.with_name(path.name + ".partial")
+    pq.write_table(pa.Table.from_pylist([_row(result)]), partial)
+    partial.replace(path)
     return path
 
 
@@ -23,8 +25,9 @@ def read(path: Path) -> CellResult:
     return CellResult(cell=cell, errors=row["errors"], seconds=row["seconds"], seed=row["seed"])
 
 
-def _row(result: CellResult, low: float, high: float) -> dict[str, int | float]:
+def _row(result: CellResult) -> dict[str, int | float]:
     cell = result.cell
+    low, high = result.interval
     return {
         "distance": cell.distance,
         "noise": cell.noise,
