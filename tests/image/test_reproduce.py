@@ -13,10 +13,12 @@ REFERENCE = json.loads((Path(__file__).resolve().parents[2] / "image/hand-built.
 
 @pytest.mark.skipif(not IMAGE, reason="set SWEEP_IMAGE to a built sweep.sif")
 def test_image_reproduces_the_hand_built_cell(tmp_path: Path) -> None:
-    subprocess.run(
+    run = subprocess.run(
         [
             "apptainer",
             "run",
+            "--bind",
+            str(tmp_path),
             IMAGE,
             "--d",
             str(REFERENCE["distance"]),
@@ -29,9 +31,10 @@ def test_image_reproduces_the_hand_built_cell(tmp_path: Path) -> None:
             "--out",
             str(tmp_path),
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert run.returncode == 0, run.stderr
     (path,) = tmp_path.glob("*.parquet")
     assert read(path).errors == REFERENCE["errors"]
