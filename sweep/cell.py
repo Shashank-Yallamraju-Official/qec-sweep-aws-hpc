@@ -1,3 +1,5 @@
+"""The unit of work: one cell of the sweep grid."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,7 +9,13 @@ MIN_DISTANCE = 3
 
 @dataclass(frozen=True)
 class Cell:
-    """One point of the sweep grid: a surface code of this distance under this noise."""
+    """One point of the sweep grid: a surface code of this distance under this noise.
+
+    Attributes:
+        distance: Code distance, odd and at least three.
+        noise: Physical error rate applied to every noise channel, in (0, 1).
+        shots: Number of syndrome samples to decode.
+    """
 
     distance: int
     noise: float
@@ -26,4 +34,5 @@ class Cell:
 
     @property
     def name(self) -> str:
+        """File-safe name that is unique per cell, such as ``d5_p0.001_s100000``."""
         return f"d{self.distance}_p{self.noise!r}_s{self.shots}"

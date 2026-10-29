@@ -1,3 +1,5 @@
+"""The ``sweep`` command: one call, one cell, one Parquet file."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,6 +13,14 @@ from sweep.parquet import write
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run one cell from command-line arguments and print the path written.
+
+    Args:
+        argv: Arguments without the program name; ``None`` reads ``sys.argv``.
+
+    Returns:
+        Exit status: 0 on success, 2 when the cell is invalid.
+    """
     parser = argparse.ArgumentParser(
         prog="sweep", description="sample and decode one surface-code cell"
     )
