@@ -33,7 +33,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | ParallelCluster + Slurm | Nodes must appear when work is queued and vanish when idle | The AWS-native HPC scheduler; Slurm is what every HPC team already speaks |
 | Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; hpc7a with EFA is required for low-latency collectives |
 | Apptainer image | A fresh node must match last week's node bit for bit | No root daemon, so it runs on shared clusters; built once in CI, pulled at job start |
-| FSx for Lustre | Hundreds of tasks writing at once would saturate NFS | Parallel filesystem striped across servers; sized small (1.2 TB) as scratch only |
+| EFS | Nodes need one shared scratch filesystem for inputs, the image and job output | Chosen over FSx for Lustre because this account's plan cannot use FSx and the sweep writes one small file per cell; the parallel-I/O lesson is a known gap, recorded in the decisions table |
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
 | CI pipeline | Config drift and manual SSH | Validates the cluster YAML and builds the image on every PR; the cluster is a versioned artifact |
 | Budget alerts + job tags | Elastic compute makes cost a per-job number | Cost Explorer grouped by job tag gives cost per sweep, the metric cloud HPC is judged on |
@@ -46,8 +46,8 @@ Each stage adds one capability from the diagram and ends with a done-signal. Sta
 1. **Define the unit of work.** Refactor the sweep so one call is one cell, parameters from the CLI, output a Parquet file named by its cell. Done: runs locally against a local path. Metric: none yet; this fixes the contract.
 2. **One node by hand.** A single EC2 instance, packages installed manually, one cell run, result copied to S3. Done: a file lands in S3 and every installed package is written down. Metric: the package list is the input to stage 3.
 3. **Freeze the environment.** Build the Apptainer image in CI; rerun stage 2 from a fresh instance using only the image. Done: a bit-identical result. Metric: time-to-reproduce, from weeks of README-following to minutes.
-4. **Stand up ParallelCluster.** Commit the cluster YAML: one head node, one Slurm queue, FSx scratch. Submit `srun hostname` across two nodes. Done: nodes appear when a job queues and vanish ten minutes after idle. Metric: time-to-first-node.
-5. **Job array for the sweep.** One `sbatch --array` script maps task index to a (d, p) cell and runs the image; results to FSx, synced to S3 on exit. Done: the full grid completes and a logical-error-rate plot comes out. Metric: wall-clock for the sweep versus a laptop.
+4. **Stand up ParallelCluster.** Commit the cluster YAML: one head node, one Slurm queue, EFS scratch. Submit `srun hostname` across two nodes. Done: nodes appear when a job queues and vanish ten minutes after idle. Metric: time-to-first-node.
+5. **Job array for the sweep.** One `sbatch --array` script maps task index to a (d, p) cell and runs the image; results to EFS, synced to S3 on exit. Done: the full grid completes and a logical-error-rate plot comes out. Metric: wall-clock for the sweep versus a laptop.
 6. **Scale and cost it.** Rerun at 4, 8 and 16 nodes with job tags; pull cost from Cost Explorer; add a spot queue beside on-demand. Done: a weak-scaling table and a cost-per-sweep figure. Metric: throughput per node and dollars per sweep.
 7. **Add tight coupling.** A state-vector simulator sharded across MPI ranks (mpi4py first, C++ second) on an EFA-enabled hpc7a queue. Done: a strong-scaling plot with efficiency falling as nodes rise, and an account of where the time goes. Metric: strong-scaling efficiency at 2, 4, 8 nodes.
 8. **Make the cluster a versioned artifact.** CI validates the cluster YAML, builds the image and runs a smoke job on every PR; Terraform owns IAM, S3 and the budget. Done: a node-type change reaches a running cluster through a pull request alone. Metric: changes shipped without SSH.
@@ -64,8 +64,8 @@ Every choice below was made for a reason a reader of the README should be able t
 | Slurm via ParallelCluster | Kubernetes with Kueue | Closer to MLOps muscle memory, but tightly coupled MPI on Kubernetes still needs an operator and EFA plumbing; the target team speaks Slurm |
 | Apptainer | Docker | Docker needs a root daemon, which shared HPC nodes do not allow; Apptainer runs unprivileged and reads Docker images |
 | Apptainer | Spack only | Spack is the right tool for compiled MPI stacks; it is kept in reserve for stage 7 and layered inside the image if needed |
-| FSx for Lustre | EFS | EFS is NFS underneath and serialises under hundreds of writers; Lustre stripes across servers |
-| FSx for Lustre | S3 only | Fine for the sweep, wrong for MPI checkpoints; using S3 alone would skip the parallel-I/O lesson |
+| EFS | FSx for Lustre | Lustre was the first choice, striping across servers under hundreds of writers, but this account's plan cannot use FSx; the sweep writes one small Parquet file per cell, which EFS serves without strain, and the parallel-I/O lesson is deferred to a cluster that can use Lustre |
+| EFS | S3 only | Fine for the sweep, wrong for MPI checkpoints, which need a shared filesystem the ranks can all reach |
 | Spot for the sweep queue | On-demand everywhere | Cells are idempotent and short, so interruption costs one cell; spot cuts the sweep's bill by roughly two-thirds |
 | On-demand for the MPI queue | Spot everywhere | One interrupted rank kills the whole MPI job |
 | Terraform for surroundings | CDK | Either works; Terraform because the ParallelCluster YAML is already declarative and the two read alike |
@@ -100,6 +100,6 @@ Cost guardrails, set before stage 2:
 
 - AWS Budget alerts at 20 and 50 USD per month.
 - Compute nodes scale to zero after 10 minutes idle; the head node is t3.medium.
-- FSx sized at the 1.2 TB minimum and deleted with the cluster.
+- EFS is paid per gigabyte stored, holds only scratch, and is deleted with the cluster.
 - Every job carries a cost-allocation tag so nothing is unattributed.
 - `pcluster delete-cluster` at the end of every session; a scheduled check confirms nothing is left running.
