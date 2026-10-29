@@ -58,7 +58,7 @@ def read_events(path: Path) -> list[Event]:
             record = json.loads(line)
             at = datetime.fromisoformat(record.pop("ts"))
             kind = str(record.pop("event"))
-        except (ValueError, KeyError, AttributeError):
+        except (ValueError, KeyError, AttributeError, TypeError):
             continue
         events.append(Event(at=at, kind=kind, data=record))
     return events
@@ -165,15 +165,21 @@ def _git(repo: Path, *args: str) -> str:
 def _status(repo: Path, plan: Sequence[PlannedCommit], events: Sequence[Event]) -> str:
     task = current_task(plan, committed_subjects(repo))
     current = open_segment(events, task.subject if task else "", datetime.now(UTC))
-    return status_line(current_branch(repo), task, len(plan), current if events else None)
+    return status_line(current_branch(repo), task, len(plan), current if events and plan else None)
 
 
-def _rows(plan: Sequence[PlannedCommit], events: Sequence[Event], stage: str | None) -> str:
-    rows = stats_per_commit(events)
-    if stage:
-        groups = {p.subject: p.group for p in plan}
-        rows = [r for r in rows if groups.get(r.subject, "").lower().startswith(stage.lower())]
-    return table(rows)
+def stage_rows(
+    plan: Sequence[PlannedCommit], events: Sequence[Event], stage: str | None
+) -> list[TaskStats]:
+    """A fix commit belongs to the stage of the planned commit before it."""
+    groups = {p.subject: p.group for p in plan}
+    rows = []
+    group = ""
+    for row in stats_per_commit(events):
+        group = groups.get(row.subject, group)
+        if stage is None or group.lower().startswith(stage.lower()):
+            rows.append(row)
+    return rows
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -184,7 +190,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     plan = read_plan(args.repo / PLAN_PATH)
     events = read_events(args.repo / EVENTS_PATH)
-    print(_status(args.repo, plan, events) if args.status else _rows(plan, events, args.stage))
+    if args.status:
+        print(_status(args.repo, plan, events))
+    else:
+        print(table(stage_rows(plan, events, args.stage)))
     return 0
 
 

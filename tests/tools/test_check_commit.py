@@ -110,3 +110,21 @@ def test_main_checks_range(tmp_path: Path) -> None:
     assert main(["--range", "HEAD~2..HEAD", "--repo", str(tmp_path)]) == 1
     _commit(tmp_path, GOOD)
     assert main(["--range", "HEAD~1..HEAD", "--repo", str(tmp_path)]) == 0
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Reason: the bucket name must be globally unique.",
+        "See: https://example.com/why",
+        "Before: 5s. After: 2s.",
+    ],
+)
+def test_accepts_one_line_body_that_looks_like_a_label(body: str) -> None:
+    assert check(f"feat(sweep): add x\n\n{body}") == []
+
+
+@pytest.mark.parametrize("trailer", ["Signed-off-by: a <a@b>", "Fixes: #12", "Change-Id: I0"])
+def test_rejects_known_trailers(trailer: str) -> None:
+    (problem,) = check(f"feat(sweep): add x\n\n{trailer}")
+    assert "trailer" in problem

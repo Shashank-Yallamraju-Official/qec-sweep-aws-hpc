@@ -19,7 +19,7 @@ BODY_WIDTH = 72
 NON_IMPERATIVE = re.compile(r"^(add|fix|updat|remov|chang|mov)(ed|es|ing|s)$")
 PLACEHOLDERS = frozenset({"wip", "update", "misc", "fixes", "changes", "cleanup", "stuff"})
 HEADER = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[a-z]+)\))?: (?P<subject>\S.*)$")
-TRAILER = re.compile(r"^[A-Za-z][A-Za-z-]*: \S")
+TRAILER = re.compile(r"^([A-Za-z]+-[A-Za-z-]+|Fixes|Closes|Refs|Resolves): \S")
 
 
 def check(message: str) -> list[str]:
