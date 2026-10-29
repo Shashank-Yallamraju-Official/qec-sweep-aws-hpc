@@ -45,8 +45,16 @@ repos:
         entry: uv run python tools/check_commit.py
         language: system
         stages: [commit-msg]
+      - id: terraform-validate
+        name: terraform validate
+        # Validation gets its own data directory so it never touches the S3 backend.
+        entry: >-
+          bash -c 'cd infra && export TF_DATA_DIR=.terraform-validate
+          && terraform init -backend=false -input=false >/dev/null && terraform validate'
+        language: system
+        files: ^infra/.*\.tf$
+        pass_filenames: false
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.109.3
     hooks:
       - id: terraform_fmt
-      - id: terraform_validate
