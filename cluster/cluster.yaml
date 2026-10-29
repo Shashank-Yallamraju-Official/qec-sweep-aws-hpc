@@ -14,6 +14,14 @@ HeadNode:
     AdditionalIamPolicies:
       # Put-only on the results bucket, owned by Terraform; results outlive the cluster.
       - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-results
+    S3Access:
+      # Read-only, for the configure script below.
+      - BucketName: qec-sweep-results-523520772490
+        KeyName: cluster/*
+  CustomActions:
+    OnNodeConfigured:
+      # A fresh EFS mount is root-owned; users need to write to scratch.
+      Script: s3://qec-sweep-results-523520772490/cluster/on-node-configured.sh
 
 Scheduling:
   Scheduler: slurm
