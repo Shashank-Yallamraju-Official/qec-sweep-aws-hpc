@@ -24,6 +24,15 @@ CLUSTER_TAG = "parallelcluster:cluster-name"
 
 @dataclass(frozen=True)
 class Instance:
+    """The little the reaper needs to know about a running instance.
+
+    Attributes:
+        id: EC2 instance id.
+        type: Instance type, for the email.
+        launched: Launch time, from which age is measured.
+        cluster: ParallelCluster name when the instance belongs to one, else ``None``.
+    """
+
     id: str
     type: str
     launched: datetime
@@ -31,6 +40,7 @@ class Instance:
 
 
 def instance_from(raw: Mapping[str, Any]) -> Instance:
+    """Pick the fields the reaper uses out of a DescribeInstances record."""
     tags = {tag["Key"]: tag["Value"] for tag in raw.get("Tags", [])}
     return Instance(
         id=raw["InstanceId"],
@@ -41,6 +51,7 @@ def instance_from(raw: Mapping[str, Any]) -> Instance:
 
 
 def stale(instances: Sequence[Instance], now: datetime, max_age: timedelta) -> list[Instance]:
+    """Instances past ``max_age`` that no cluster is responsible for."""
     return [i for i in instances if i.cluster is None and now - i.launched > max_age]
 
 
@@ -50,6 +61,17 @@ def summary(
     now: datetime,
     failure: str | None = None,
 ) -> str:
+    """The email body: one line per running instance, then what happened to the stale ones.
+
+    Args:
+        running: Every instance seen this hour.
+        reaped: The subset that was due for termination.
+        now: When the check ran, for uptimes.
+        failure: The error text when terminating failed, so the email still says so.
+
+    Returns:
+        Plain text ending in either ``terminated: ...`` or ``terminate failed (...): ...``.
+    """
     lines = [f"{i.id} {i.type} up {_uptime(now - i.launched)}" for i in running]
     ids = ", ".join(i.id for i in reaped)
     outcome = f"terminate failed ({ids}): {failure}" if failure else f"terminated: {ids or 'none'}"
@@ -57,8 +79,10 @@ def summary(
 
 
 def running_instances(ec2: EC2Client) -> list[Instance]:
-    # The account runs nothing but this project, so every instance counts,
-    # tagged or not.
+    """Every pending or running instance in the region.
+
+    The account runs nothing but this project, so all of them count, tagged or not.
+    """
     pages = ec2.get_paginator("describe_instances").paginate(
         Filters=[{"Name": "instance-state-name", "Values": ["pending", "running"]}]
     )
@@ -71,6 +95,14 @@ def running_instances(ec2: EC2Client) -> list[Instance]:
 
 
 def handler(_event: object, _context: object) -> dict[str, int]:
+    """Lambda entry point, run hourly by EventBridge.
+
+    Reads ``TOPIC_ARN`` and ``MAX_HOURS`` from the environment. Emails only
+    while something is running, so a quiet account produces no mail.
+
+    Returns:
+        Counts of running and reaped instances, visible in the invocation log.
+    """
     ec2 = boto3.client("ec2")
     now = datetime.now(UTC)
     running = running_instances(ec2)
