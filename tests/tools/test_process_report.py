@@ -14,6 +14,7 @@ from tools.process_report import (
     open_segment,
     read_events,
     read_plan,
+    stage_rows,
     stats_per_commit,
     status_line,
     table,
@@ -139,3 +140,41 @@ def test_main_status_prints_branch_only_in_fresh_repo(
     subprocess.run(commit, cwd=tmp_path, check=True)
     assert main(["--status", "--repo", str(tmp_path)]) == 0
     assert capsys.readouterr().out.strip() == "trunk"
+
+
+def test_read_events_skips_lines_that_are_not_event_objects(tmp_path: Path) -> None:
+    log = tmp_path / "events.jsonl"
+    log.write_text(
+        '[1]\n{"ts": 5, "event": "edit"}\n'
+        '{"ts": "2026-10-29T12:00:00Z", "event": "edit", "file": "a.py", "ok": true}\n'
+    )
+    assert [e.kind for e in read_events(log)] == ["edit"]
+
+
+def test_main_status_prints_branch_only_without_plan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "init", "-q", "-b", "trunk"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [*git, "commit", "-q", "--allow-empty", "-m", "chore: a"], cwd=tmp_path, check=True
+    )
+    log = tmp_path / ".claude" / "metrics" / "events.jsonl"
+    log.parent.mkdir(parents=True)
+    log.write_text('{"ts": "2026-10-29T12:00:00Z", "event": "edit", "file": "a.py", "ok": true}\n')
+    assert main(["--status", "--repo", str(tmp_path)]) == 0
+    assert capsys.readouterr().out.strip() == "trunk"
+
+
+def test_stage_rows_keep_fix_commits_with_the_preceding_planned_commit() -> None:
+    events = [
+        ev(0, "edit", ok=True),
+        ev(1, "commit", sha="a", subject="chore: a"),
+        ev(2, "edit", ok=False),
+        ev(3, "commit", sha="b", subject="fix: b"),
+        ev(4, "edit", ok=True),
+        ev(5, "commit", sha="c", subject="feat(sweep): c"),
+    ]
+    rows = stage_rows(PLAN, events, "bootstrap")
+    assert [r.subject for r in rows] == ["chore: a", "fix: b"]
+    assert [r.subject for r in stage_rows(PLAN, events, "stage 1")] == ["feat(sweep): c"]
