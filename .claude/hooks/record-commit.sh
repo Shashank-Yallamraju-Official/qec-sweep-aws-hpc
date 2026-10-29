@@ -2,6 +2,7 @@
 # Logs whether a `git commit` run from Claude Code produced a commit.
 # Called with `before` (remember HEAD) and `after` (compare and log).
 set -euo pipefail
+cd "${CLAUDE_PROJECT_DIR:-.}"
 cmd=$(jq -r '.tool_input.command // empty')
 [[ $cmd == *"git commit"* ]] || exit 0
 
