@@ -31,8 +31,10 @@ while IFS= read -r simple; do
       [[ $target == main ]] && refuse "main takes pull requests only"
       ;;
     switch | checkout)
+      # The branch is the first plain argument; after `--` only paths follow.
       for a in "${args[@]+"${args[@]}"}"; do
-        [[ $a == -* ]] || target=$a
+        [[ $a == -- ]] && break
+        [[ $a == -* ]] || { target=$a; break; }
       done
       ;;
   esac

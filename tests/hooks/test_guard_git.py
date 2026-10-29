@@ -57,5 +57,8 @@ def test_refuses_commit_and_push_on_main(project: Path) -> None:
         assert guard(project, "git push") == 2
         assert guard(project, "git status") == 0
         assert guard(project, "git switch -c topic && git commit -m x") == 0
+        assert guard(project, "git checkout -b topic main && git commit -m x") == 0
+        assert guard(project, "git checkout -- README.md && git commit -m x") == 2
+        assert guard(project, "git switch -c topic && git switch main && git push") == 2
     finally:
         git(project, "switch", "-q", "work")
