@@ -160,7 +160,7 @@ def status_line(
 ) -> str:
     """One line for the Claude Code status bar: branch, next task, and the task's numbers so far.
 
-    Parts that are unknown are left out, so a fresh clone shows just the branch.
+    Unknown parts are left out: no plan drops the task, no event log drops the numbers.
     """
     parts = [branch]
     if task:
@@ -224,7 +224,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: Arguments without the program name; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status, always 0; bad or missing data yields less output, never a failure.
+        Exit status 0. A missing or damaged log or plan yields less output rather than
+        an error; a directory that is not a git repository still raises.
     """
     parser = argparse.ArgumentParser(description="time and fixes per commit from the hook log")
     parser.add_argument("--status", action="store_true", help="one line for the status bar")

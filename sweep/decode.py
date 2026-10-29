@@ -51,7 +51,8 @@ def wilson_interval(errors: int, shots: int, z: float = Z_95) -> tuple[float, fl
         z: Standard-normal quantile for the confidence level; 1.96 gives 95%.
 
     Returns:
-        The lower and upper bounds, clamped to [0, 1].
+        The lower and upper bounds. With no errors the lower bound is exactly zero,
+        and with every shot an error the upper bound is exactly one.
     """
     rate = errors / shots
     denominator = 1 + z**2 / shots
