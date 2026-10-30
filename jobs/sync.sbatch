@@ -7,5 +7,6 @@
 set -euo pipefail
 : "${RUN_DIR:?}" "${DESTINATION:?}"
 target="$DESTINATION/$(basename "$RUN_DIR")"
-aws s3 cp --quiet --recursive "$RUN_DIR/cells" "$target/"
+# A task killed mid-write leaves a .partial file; it is not a result.
+aws s3 cp --quiet --recursive --exclude '*.partial' "$RUN_DIR/cells" "$target/"
 echo "$(find "$RUN_DIR/cells" -name '*.parquet' | wc -l) files copied to $target/"
