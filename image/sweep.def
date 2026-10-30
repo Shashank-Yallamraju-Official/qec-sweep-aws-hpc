@@ -17,6 +17,9 @@ From: python@sha256:8523d6abeb48ceae0b7240d30c5808fc26cb79c1a635bacdf19cf3baecfb
     # The host's user site-packages and PYTHONPATH must not shadow the pinned ones.
     export PYTHONNOUSERSITE=1
     unset PYTHONPATH
+    # PyMatching imports matplotlib, which wants a writable config dir the
+    # container's home bind does not offer.
+    export MPLCONFIGDIR=/tmp/matplotlib
 
 %runscript
     exec sweep "$@"
