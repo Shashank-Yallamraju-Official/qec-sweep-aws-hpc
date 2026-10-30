@@ -31,3 +31,9 @@ variable "nat_gateway" {
   default     = false
   description = "give the MPI subnet a NAT gateway; it bills by the hour, so true only while the cluster exists"
 }
+
+variable "github_repository" {
+  type        = string
+  default     = "Shashank-Yallamraju-Official/qec-sweep-aws-hpc"
+  description = "the repository whose Actions may assume the plan and deploy roles"
+}
