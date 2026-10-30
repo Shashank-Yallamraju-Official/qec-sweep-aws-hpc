@@ -14,8 +14,6 @@ on:
       - infra/**
       - .github/workflows/infra.yml
 
-concurrency: infra
-
 # The one input Terraform cannot read from the repository: where budget alerts go.
 env:
   TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
@@ -24,6 +22,11 @@ jobs:
   plan:
     if: github.event_name == 'pull_request'
     runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    # A newer push to the same pull request supersedes an older plan; an apply
+    # waiting on main must never be cancelled by one.
+    concurrency:
+      group: infra-plan-${{ github.ref }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: infra
@@ -37,6 +40,9 @@ jobs:
   apply:
     if: github.event_name == 'push'
     runs-on: codebuild-qec-sweep-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+    concurrency:
+      group: infra-apply
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: infra
