@@ -31,7 +31,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | Component | Problem it solves | Why this choice |
 | --- | --- | --- |
 | ParallelCluster + Slurm | Nodes must appear when work is queued and vanish when idle | The AWS-native HPC scheduler; Slurm is what every HPC team already speaks |
-| Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; hpc7a with EFA is required for low-latency collectives |
+| Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; an HPC instance type with EFA is required for low-latency collectives. hpc6a, not hpc7a as first planned: hpc7a's two network cards cannot take a public IP, so it needs a private subnet and a NAT gateway, while hpc6a has one card and costs two fifths as much |
 | Apptainer image | A fresh node must match last week's node bit for bit | No root daemon, so it runs on shared clusters; built once in CI, pulled at job start |
 | EFS | Nodes need one shared scratch filesystem for inputs, the image and job output | Chosen over FSx for Lustre because this account's plan cannot use FSx and the sweep writes one small file per cell; the parallel-I/O lesson is a known gap, recorded in the decisions table |
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
@@ -49,7 +49,7 @@ Each stage adds one capability from the diagram and ends with a done-signal. Sta
 4. **Stand up ParallelCluster.** Commit the cluster YAML: one head node, one Slurm queue, EFS scratch. Submit `srun hostname` across two nodes. Done: nodes appear when a job queues and vanish ten minutes after idle. Metric: time-to-first-node.
 5. **Job array for the sweep.** One `sbatch --array` script maps task index to a (d, p) cell and runs the image; results to EFS, synced to S3 on exit. Done: the full grid completes and a logical-error-rate plot comes out. Metric: wall-clock for the sweep versus a laptop.
 6. **Scale and cost it.** Rerun at 1, 4, 8 and 16 nodes, each run recording its nodes and timing; price the runs and check the total against Cost Explorer; add a spot queue beside on-demand. Done: a weak-scaling table and a cost-per-sweep figure. Metric: throughput per node and dollars per sweep.
-7. **Add tight coupling.** A state-vector simulator sharded across MPI ranks (mpi4py first, C++ second) on an EFA-enabled hpc7a queue. Done: a strong-scaling plot with efficiency falling as nodes rise, and an account of where the time goes. Metric: strong-scaling efficiency at 2, 4, 8 nodes.
+7. **Add tight coupling.** A state-vector simulator sharded across MPI ranks (mpi4py first, C++ second) on an EFA-enabled hpc6a queue. Done: a strong-scaling plot with efficiency falling as nodes rise, and an account of where the time goes. Metric: strong-scaling efficiency at 2, 4, 8 nodes.
 8. **Make the cluster a versioned artifact.** CI validates the cluster YAML, builds the image and runs a smoke job on every PR; Terraform owns IAM, S3 and the budget. Done: a node-type change reaches a running cluster through a pull request alone. Metric: changes shipped without SSH.
 9. **Graphical node, optional.** A DCV-enabled login node running a GUI tool (ParaView is enough). Done: a remote desktop session opens from a browser. Metric: none; this proves the CAE pattern.
 10. **Write it up.** README with the diagram above, the metrics table below and three paragraphs on what broke.
