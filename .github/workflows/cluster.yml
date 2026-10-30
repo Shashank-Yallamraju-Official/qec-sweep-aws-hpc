@@ -17,7 +17,11 @@ jobs:
         with:
           node-version: 20
       - uses: astral-sh/setup-uv@v6
+      # The two launch-template validators call RunInstances in dry-run mode, which
+      # still needs the RunInstances permission the read-only runner does not hold;
+      # the deploy on main runs them for real.
       - run: >-
           uvx --from aws-parallelcluster==3.16.2 pcluster create-cluster --dryrun true
           --cluster-name "qec-pr-${{ github.event.number }}"
           --cluster-configuration cluster/cluster.yaml --region us-east-2
+          --suppress-validators type:HeadNodeLaunchTemplateValidator type:ComputeResourceLaunchTemplateValidator
