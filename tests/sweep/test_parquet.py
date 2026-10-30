@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -7,7 +8,15 @@ from sweep.cell import Cell
 from sweep.decode import CellResult
 from sweep.parquet import read, write
 
-RESULT = CellResult(cell=Cell(distance=5, noise=1e-3, shots=100_000), errors=7, seconds=1.5, seed=3)
+STARTED = datetime(2026, 10, 30, 12, 0, 0, 250_000, tzinfo=UTC)
+RESULT = CellResult(
+    cell=Cell(distance=5, noise=1e-3, shots=100_000),
+    errors=7,
+    seconds=1.5,
+    seed=3,
+    started=STARTED,
+    host="node-1",
+)
 
 
 def test_write_names_file_by_cell(tmp_path: Path) -> None:
@@ -35,7 +44,16 @@ def test_columns_are_flat_and_named(tmp_path: Path) -> None:
         "ci_high",
         "seconds",
         "seed",
+        "started",
+        "finished",
+        "host",
     ]
+
+
+def test_finished_is_the_start_plus_the_seconds_in_utc(tmp_path: Path) -> None:
+    row = pq.read_table(write(RESULT, tmp_path)).to_pylist()[0]
+    assert row["finished"] == STARTED + timedelta(seconds=1.5)
+    assert row["finished"].tzinfo is not None
 
 
 def test_a_failed_write_leaves_nothing_under_the_cell_name(

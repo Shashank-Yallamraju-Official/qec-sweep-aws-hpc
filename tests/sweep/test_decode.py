@@ -1,4 +1,6 @@
+import socket
 import tracemalloc
+from datetime import UTC, datetime
 
 import numpy as np
 import pymatching
@@ -39,6 +41,13 @@ def test_decode_result_carries_rate_interval_and_timing() -> None:
     assert low <= result.logical_error_rate <= high
     assert result.seconds > 0
     assert result.seed == 1
+
+
+def test_decode_result_says_when_and_where() -> None:
+    before = datetime.now(UTC)
+    result = decode(Cell(distance=3, noise=0.01, shots=100))
+    assert before <= result.started <= result.finished <= datetime.now(UTC)
+    assert result.host == socket.gethostname()
 
 
 def test_decode_matches_an_unpacked_reference() -> None:
