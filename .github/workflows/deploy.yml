@@ -1,0 +1,81 @@
+name: deploy
+
+# A merge to main reaches the running cluster by itself: the job scripts are
+# installed on the head node and a changed cluster configuration is applied in
+# place, with the compute fleet stopped around the update as ParallelCluster
+# requires. Nothing here creates or deletes a cluster; that stays a decision
+# taken by hand, because it is the one that costs money.
+on:
+  push:
+    branches: [main]
+    paths:
+      - cluster/**
+      - jobs/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+concurrency: deploy
+
+env:
+  AWS_REGION: us-east-2
+  CLUSTER: qec
+  BUCKET: qec-sweep-results-523520772490
+
+jobs:
+  cluster:
+    runs-on: codebuild-qec-sweep-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: astral-sh/setup-uv@v6
+      - id: head
+        name: find the head node
+        run: |
+          head=$(aws ec2 describe-instances \
+            --filters "Name=tag:parallelcluster:cluster-name,Values=$CLUSTER" \
+                      Name=tag:parallelcluster:node-type,Values=HeadNode \
+                      Name=instance-state-name,Values=running \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          echo "id=$head" >> "$GITHUB_OUTPUT"
+          [[ -n $head ]] || echo "no cluster is running; nothing to update"
+      - if: steps.head.outputs.id != ''
+        name: install the job scripts
+        run: |
+          tar czf jobs.tgz jobs
+          aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz"
+          command=$(aws ssm send-command --document-name qec-sweep-install-jobs \
+            --instance-ids "${{ steps.head.outputs.id }}" \
+            --parameters "jobs=s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz,commit=$GITHUB_SHA" \
+            --query Command.CommandId --output text)
+          invocation() {
+            aws ssm get-command-invocation --command-id "$command" \
+              --instance-id "${{ steps.head.outputs.id }}" --query "$1" --output text 2>/dev/null
+          }
+          until status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]]; do sleep 10; done
+          invocation '[StandardOutputContent,StandardErrorContent]'
+          [[ $status == Success ]]
+      - if: steps.head.outputs.id != ''
+        name: apply the cluster configuration
+        run: |
+          pcluster() { uvx --from aws-parallelcluster==3.16.2 pcluster "$@" --region "$AWS_REGION"; }
+          fleet() {
+            pcluster update-compute-fleet --cluster-name "$CLUSTER" --status "$1_REQUESTED" >/dev/null
+            until [[ $(pcluster describe-compute-fleet --cluster-name "$CLUSTER" | jq -r .status) == "$2" ]]; do
+              sleep 15
+            done
+          }
+          # A dry run tells the two outcomes apart: nothing to change, or a change to make.
+          pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration cluster/cluster.yaml \
+            --dryrun true > dryrun.json || true
+          jq -r '.message // empty, (.updateValidationErrors // [] | .[] | "\(.parameter): \(.message)")' dryrun.json
+          if jq -e '.message | test("No changes found")' dryrun.json >/dev/null; then exit 0; fi
+          jq -e '.message | test("would have succeeded")' dryrun.json >/dev/null
+          fleet STOP STOPPED
+          pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration cluster/cluster.yaml >/dev/null
+          until s=$(pcluster describe-cluster --cluster-name "$CLUSTER" | jq -r .clusterStatus) \
+                && [[ $s != UPDATE_IN_PROGRESS ]]; do sleep 30; done
+          echo "cluster $s"
+          fleet START RUNNING
+          [[ $s == UPDATE_COMPLETE ]]

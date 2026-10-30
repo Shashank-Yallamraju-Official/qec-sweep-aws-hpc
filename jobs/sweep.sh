@@ -12,6 +12,8 @@ mkdir -p "$run_dir/cells" "$run_dir/logs"
 # apptainer reports the registry digest on stderr while pulling; the record keeps it,
 # since a tag can move and a digest cannot.
 digest=$(apptainer pull --force "$run_dir/sweep.sif" "$image_uri" 2>&1 | tee /dev/stderr | sed -n 's/^INFO: *Digest: *//p')
+# The deploy workflow installs the scripts with the commit they came from beside them.
+commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
 config_hash=
 if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
@@ -38,10 +40,11 @@ sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
 # Written after both submissions so the record can name them; the sync job that
 # closes it cannot start before the array ends.
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg nodes "$nodes" --arg image "$image_uri" \
-  --arg digest "$digest" --arg config_hash "$config_hash" --arg submitted "$submitted" \
+  --arg digest "$digest" --arg commit "$commit" --arg config_hash "$config_hash" --arg submitted "$submitted" \
   --argjson array "$array" --argjson sync "$sync" \
   '{run: $run, queue: $queue, nodes: ($nodes | if . == "" then null else tonumber end),
     instance_type: "c7a.large", image: $image, image_digest: ($digest | if . == "" then null else . end),
+    commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
     jobs: {array: $array, sync: $sync}, submitted: $submitted}' > "$run_dir/run.json"
 echo "$run_dir array=$array sync=$sync"
