@@ -53,6 +53,11 @@ jobs:
             aws ssm get-command-invocation --region us-east-2 --command-id "$command" \
               --instance-id "${{ steps.head.outputs.id }}" --query "$1" --output text 2>/dev/null
           }
-          until status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]]; do sleep 15; done
+          # Two nodes booting takes about seven minutes; a lookup that keeps failing
+          # is an error, not a job still running.
+          for _ in $(seq 1 60); do
+            status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]] && break
+            sleep 15
+          done
           invocation '[StandardOutputContent,StandardErrorContent]'
-          [[ $status == Success ]]
+          [[ ${status:-} == Success ]]
