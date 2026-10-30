@@ -1,0 +1,67 @@
+"""How a rank trades its amplitudes with the ranks a gate mixes them with."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+import numpy as np
+from numpy.typing import NDArray
+
+type Amplitudes = NDArray[np.complex128]
+
+
+class Exchange(Protocol):
+    """Pairwise exchange of equal-sized buffers between numbered ranks."""
+
+    @property
+    def rank(self) -> int:
+        """This rank's number, from zero."""
+
+    @property
+    def size(self) -> int:
+        """How many ranks there are."""
+
+    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
+        """Send a buffer to ``peer`` and return the one it sends back.
+
+        Every swap is mutual: ``peer`` must be swapping with this rank in the
+        same step, or both wait forever.
+        """
+
+
+class Alone:
+    """The single rank of a run without MPI: it holds the whole state and has no peers."""
+
+    rank = 0
+    size = 1
+
+    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
+        """Fail: a single rank has nobody to swap with."""
+        msg = f"rank 0 of 1 cannot swap {send.size} amplitudes with peer {peer}"
+        raise LookupError(msg)
+
+
+class World:
+    """All the ranks under ``mpiexec``, through mpi4py."""
+
+    def __init__(self) -> None:
+        # Importing mpi4py initialises MPI, which only a process under mpiexec should do.
+        from mpi4py import MPI  # noqa: PLC0415
+
+        self._comm = MPI.COMM_WORLD
+
+    @property
+    def rank(self) -> int:
+        """This rank's number, from zero."""
+        return int(self._comm.Get_rank())
+
+    @property
+    def size(self) -> int:
+        """How many ranks there are."""
+        return int(self._comm.Get_size())
+
+    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
+        """Send to ``peer`` and receive from it in one call, so neither side waits on the other."""
+        received = np.empty_like(send)
+        self._comm.Sendrecv(send, dest=peer, recvbuf=received, source=peer)
+        return received
