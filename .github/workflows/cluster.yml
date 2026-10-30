@@ -1,0 +1,23 @@
+name: cluster
+
+# The cluster configuration is validated by ParallelCluster itself, against the
+# account, on a read-only runner inside the project (see infra/deploy.tf).
+on:
+  pull_request:
+    paths:
+      - cluster/**
+      - .github/workflows/cluster.yml
+
+jobs:
+  validate:
+    runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: astral-sh/setup-uv@v6
+      - run: >-
+          uvx --from aws-parallelcluster==3.16.2 pcluster create-cluster --dryrun true
+          --cluster-name "qec-pr-${{ github.event.number }}"
+          --cluster-configuration cluster/cluster.yaml --region us-east-2
