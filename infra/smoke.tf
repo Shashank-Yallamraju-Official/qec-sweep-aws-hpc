@@ -24,9 +24,11 @@ resource "aws_ssm_document" "smoke" {
         runCommand = [
           "#!/bin/bash",
           "set -euo pipefail",
-          "work=$(mktemp -d /tmp/smoke.XXXXXX)",
+          "# The job's output lands beside the script, so it must be on the shared scratch,",
+          "# not the head node's own /tmp, which the compute nodes never see.",
+          "work=$(mktemp -d /scratch/smoke.XXXXXX)",
           "aws s3 cp --quiet '{{ jobs }}' \"$work/jobs.tgz\"",
-          "tar xzf \"$work/jobs.tgz\" -C \"$work\" && chown -R ubuntu:ubuntu \"$work\"",
+          "tar xzf \"$work/jobs.tgz\" -C \"$work\" --warning=no-unknown-keyword && chown -R ubuntu:ubuntu \"$work\"",
           "cd \"$work\" && runuser -u ubuntu -- env PATH=/opt/slurm/bin:$PATH sbatch --wait --parsable jobs/smoke.sbatch > job.id",
           "cat \"smoke-$(cat job.id).out\"",
         ]
