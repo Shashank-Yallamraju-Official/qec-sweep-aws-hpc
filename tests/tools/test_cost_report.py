@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+
 from tools.cost_report import Run, billed_node_hours, cost, main, read_run, report
 
 RUN = Run(
