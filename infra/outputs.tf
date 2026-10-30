@@ -9,3 +9,7 @@ output "node_instance_profile" {
 output "node_results_policy" {
   value = aws_iam_policy.node_results.arn
 }
+
+output "mpi_subnet_id" {
+  value = aws_subnet.mpi.id
+}
