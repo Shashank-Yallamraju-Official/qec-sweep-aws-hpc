@@ -94,7 +94,7 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 44. `test(mpi): match sharded amplitudes to a single-rank run`
 45. `feat(mpi): run a brickwork circuit and record its timings`
 46. `build(image): build an mpi image on the efa stack`
-47. `feat(cluster): add an efa-enabled hpc7a queue`
+47. `feat(cluster): add an efa-enabled hpc6a queue`
 48. `feat(jobs): submit the state-vector run across ranks`
 49. `perf(mpi): move the gate kernel to c++`
 50. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
