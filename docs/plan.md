@@ -170,7 +170,7 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 95. `test(web): drive the comparison end to end in playwright`
 96. `ci(web): check types, tests and bundle size on pull request`
 97. `ci(web): publish the site with its data snapshot on merge`
-98. `docs(metrics): record the site's load, query and size figures`
+98. `docs(metrics): record the site's load, query and size`
 99. `docs: add the comparison site to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
