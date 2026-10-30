@@ -60,9 +60,7 @@ Scheduling:
       CustomActions: *configure
     # Tightly coupled ranks: EFA carries the exchanges, one placement group keeps
     # the nodes close, and on demand because one lost rank kills the whole job.
-    # hpc6a rather than hpc7a: hpc7a's two network cards rule out a public IP,
-    # so it needs a private subnet and a NAT gateway; hpc6a has one card and
-    # costs two fifths as much.
+    # hpc6a rather than hpc7a: two fifths of the price for the same scaling question.
     - Name: mpi
       ComputeResources:
         - Name: hpc6a
