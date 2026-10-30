@@ -92,7 +92,7 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 42. `feat(mpi): shard a state vector across ranks`
 43. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
 44. `test(mpi): match sharded amplitudes to a single-rank run`
-45. `feat(mpi): run a brickwork circuit and record where time goes`
+45. `feat(mpi): run a brickwork circuit and record its timings`
 46. `build(image): build an mpi image on the efa stack`
 47. `feat(cluster): add an efa-enabled hpc7a queue`
 48. `feat(jobs): submit the state-vector run across ranks`
