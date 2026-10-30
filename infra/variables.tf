@@ -35,5 +35,11 @@ variable "nat_gateway" {
 variable "github_repository" {
   type        = string
   default     = "Shashank-Yallamraju-Official/qec-sweep-aws-hpc"
-  description = "the repository whose Actions may assume the plan and deploy roles"
+  description = "the repository whose Actions run on the plan and deploy runners"
+}
+
+variable "github_actor_id" {
+  type        = string
+  default     = "245481804"
+  description = "the GitHub account whose workflow runs may use the deploy runner"
 }
