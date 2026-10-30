@@ -1,0 +1,39 @@
+Bootstrap: docker
+From: ubuntu@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+
+# ubuntu:24.04 by digest, the release the cluster's nodes run, with the EFA
+# installer their AMI carries: libfabric with the EFA provider and the same
+# Open MPI as the host's launcher, so a rank inside the container answers an
+# mpirun outside it. Python is the distribution's; mpi4py is built against
+# that Open MPI; the project comes in as a wheel built outside the image.
+
+%files
+    image/mpi-packages.txt /opt/mpi/packages.txt
+    dist/*.whl /opt/mpi/
+
+%post
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends ca-certificates curl gcc python3 python3-dev python3-venv
+    curl -fsSL -o /tmp/efa.tar.gz https://efa-installer.amazonaws.com/aws-efa-installer-1.49.0.tar.gz
+    echo "cf2e9281a2328a243c76f911a490faed43ca0fecfe4733c25e34b2e92a32c309  /tmp/efa.tar.gz" | sha256sum -c
+    tar -xzf /tmp/efa.tar.gz -C /tmp
+    # No kernel module or device check: the host has both, a build machine neither.
+    (cd /tmp/aws-efa-installer && ./efa_installer.sh --yes --skip-kmod --skip-limit-conf --no-verify --mpi=openmpi4)
+    python3 -m venv /opt/venv
+    MPICC=/opt/amazon/openmpi/bin/mpicc /opt/venv/bin/pip install --no-cache-dir --quiet --no-deps --no-binary mpi4py -r /opt/mpi/packages.txt
+    /opt/venv/bin/pip install --no-cache-dir --quiet --no-deps /opt/mpi/*.whl
+    rm -rf /tmp/efa.tar.gz /tmp/aws-efa-installer /var/lib/apt/lists/*
+
+%environment
+    export PYTHONNOUSERSITE=1
+    unset PYTHONPATH
+    export PATH=/opt/venv/bin:/opt/amazon/openmpi/bin:/opt/amazon/efa/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/efa/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+
+%runscript
+    exec statevector "$@"
+
+%labels
+    org.opencontainers.image.source https://github.com/Shashank-Yallamraju-Official/qec-sweep-aws-hpc
