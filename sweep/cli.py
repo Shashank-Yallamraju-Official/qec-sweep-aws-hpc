@@ -44,9 +44,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _cell(args: argparse.Namespace) -> Cell:
+    explicit = (args.d, args.p, args.shots)
+    if args.index is not None and any(v is not None for v in explicit):
+        msg = "--index names a cell by itself; drop --d, --p and --shots"
+        raise ValueError(msg)
     if args.index is not None:
         return GRID.cell(args.index)
-    if None in (args.d, args.p, args.shots):
+    if None in explicit:
         msg = "give --index, or all of --d, --p and --shots"
         raise ValueError(msg)
     return Cell(distance=args.d, noise=args.p, shots=args.shots)
