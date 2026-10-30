@@ -84,34 +84,35 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 37. `feat(jobs): record each run's nodes and timing for costing`
 38. `feat(cluster): add a spot queue beside on-demand`
 39. `feat(tools): report cost per sweep from each run's record`
-40. `docs(metrics): record weak scaling and cost per sweep`
+40. `feat(jobs): run the grid at 1, 4, 8 and 16 nodes in turn`
+41. `docs(metrics): record weak scaling and cost per sweep`
 
 ### Stage 7, tight coupling
 
-41. `feat(mpi): shard a state vector across ranks`
-42. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
-43. `test(mpi): match sharded amplitudes to a single-rank run`
-44. `feat(cluster): add an efa-enabled hpc7a queue`
-45. `feat(jobs): submit the state-vector run across ranks`
-46. `perf(mpi): move the gate kernel to c++`
-47. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
+42. `feat(mpi): shard a state vector across ranks`
+43. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
+44. `test(mpi): match sharded amplitudes to a single-rank run`
+45. `feat(cluster): add an efa-enabled hpc7a queue`
+46. `feat(jobs): submit the state-vector run across ranks`
+47. `perf(mpi): move the gate kernel to c++`
+48. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
 
 ### Stage 8, cluster as versioned artifact
 
-48. `ci(cluster): validate the cluster config on pull request`
-49. `ci(cluster): run the smoke job on pull request`
-50. `ci(cluster): update the running cluster on merge to main`
-51. `ci(infra): plan terraform on pull request, apply on main`
-52. `docs(metrics): record changes shipped without ssh`
+49. `ci(cluster): validate the cluster config on pull request`
+50. `ci(cluster): run the smoke job on pull request`
+51. `ci(cluster): update the running cluster on merge to main`
+52. `ci(infra): plan terraform on pull request, apply on main`
+53. `docs(metrics): record changes shipped without ssh`
 
 ### Stage 9, graphical node
 
-53. `feat(cluster): add a dcv-enabled login node`
-54. `feat(cluster): install paraview on the login node`
+54. `feat(cluster): add a dcv-enabled login node`
+55. `feat(cluster): install paraview on the login node`
 
 ### Stage 10, write-up
 
-55. `docs: add readme with architecture, metrics and what broke`
+56. `docs: add readme with architecture, metrics and what broke`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
