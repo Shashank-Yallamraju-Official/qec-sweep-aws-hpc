@@ -13,7 +13,7 @@ The design is in [design.md](design.md). This file is the order of work: fifteen
 | 5 | Job array for the sweep | The full grid completes and a logical-error-rate plot comes out | sweep wall-clock against a laptop: **9.7 min** on the cluster from `sbatch` to the last of 200 cells written, against **1.4 min** on a ten-core laptop. Of the cluster's time, 7.5 min was four nodes booting and configuring and 2.2 min was decoding on eight slots; the laptop needed 9.3 CPU-minutes, the cluster 18 slot-minutes |
 | 6 | Scale and cost | A weak-scaling table and a cost-per-sweep figure | cells per node-hour at 1, 4, 7, 8 and 16 nodes, from the first cell written to the last: **1470**, **1330** (91%), **1210** (82%), **1150** (78%), **920** (62%), the last two once the vCPU quota rose to 64; the 90% target holds to 4 nodes and fails at 16. The loss is load imbalance: the grid runs in distance order, so the forty slowest cells, at d=11, start last, and at 16 nodes the whole grid takes 49 s, not much more than one of them. The figures are from runs whose nodes were all up at the first cell; a 16-node run started while eight of its nodes were still booting measured provisioning instead, 118 cells per node-hour, because Slurm hands tasks to nodes that are still powering up and they wait six minutes for them. Cost per sweep at 7 nodes on demand: **$0.018** while cells ran, **$0.14** once each node's ten idle minutes before scale-down are billed, and at 16 nodes **$0.024** and **$0.30**; at the day's spot price it would be 38% of that, over the one-third target, and this account cannot launch spot at all, an organisation policy denies it. Cost Explorer and the budget both report 0 USD for the month from inside the project, so the check against the bill is open |
 | 7 | Tight coupling over MPI on EFA | A strong-scaling plot and an account of where the time goes | strong-scaling efficiency, provisional: **62%** at 2 nodes and **39%** at 4, for 25 qubits and six brickwork layers on `c7a.large` pairs over TCP, two ranks per node, 10.4 s on one node. The time goes to the exchanges: a tenth of it at one node, two fifths at two, three fifths at four, while the computing part halves each time as it should. The EFA points at 2, 4 and 8 `hpc6a.48xlarge` nodes wait on the account's HPC instance quota, zero until a request for 1,536 vCPUs is granted. Two things broke on the way: each rank runs in its own container and user namespace, so Open MPI's shared-memory single-copy path hangs until it is turned off; and an EFA node carries a second network interface, so the queue needs a private subnet and a NAT gateway |
-| 8 | The cluster as a versioned artifact | A node-type change reaches a running cluster through a pull request alone | changes shipped without SSH |
+| 8 | The cluster as a versioned artifact, and complete run records | A node-type change reaches a running cluster through a pull request alone, and every run from here on names the image digest, the cluster configuration and its jobs | changes shipped without SSH |
 | 9 | Graphical login node (optional) | A remote desktop session opens from a browser | none; proves the pattern |
 | 10 | Write-up | README with the diagram, the metrics table and what broke | |
 | 11 | The same simulation on GPUs | The state-vector run completes on one GPU, then across the GPUs of one node and of two, with the amplitudes matching the CPU run | time per layer and dollars per run on one `g6` GPU against one `hpc6a` node and the laptop; scaling efficiency at 2 and 4 GPUs over PCIe and at 8 across two nodes; the overlap of the single-precision GPU state with the double-precision CPU state, above 1 - 1e-6; the hand-written kernel's time per layer over cuStateVec's, within 2x. The G-instance quota starts at zero like the HPC one; the request goes in before the stage starts |
@@ -107,87 +107,90 @@ The design is in [design.md](design.md). This file is the order of work: fifteen
 
 ### Stage 8, cluster as versioned artifact
 
-52. `ci(cluster): validate the cluster config on pull request`
-53. `ci(cluster): run the smoke job on pull request`
-54. `ci(cluster): update the running cluster on merge to main`
-55. `ci(infra): plan terraform on pull request, apply on main`
-56. `docs(metrics): record changes shipped without ssh`
+52. `feat(sweep): write each cell's start, end and host in its row`
+53. `feat(jobs): record image digest, config hash and job ids`
+54. `feat(infra): lock the results prefix against overwrites`
+55. `feat(infra): add a deploy role for github actions`
+56. `ci(cluster): validate the cluster config on pull request`
+57. `ci(cluster): run the smoke job on pull request`
+58. `ci(cluster): update the running cluster on merge to main`
+59. `ci(infra): plan terraform on pull request, apply on main`
+60. `docs(metrics): record changes shipped without ssh`
 
 ### Stage 9, graphical node
 
-57. `feat(cluster): add a dcv-enabled login node`
-58. `feat(cluster): install paraview on the login node`
+61. `feat(cluster): add a dcv-enabled login node`
+62. `feat(cluster): install paraview on the login node`
 
 ### Stage 10, write-up
 
-59. `docs: add readme with architecture, metrics and what broke`
+63. `docs: add readme with architecture, metrics and what broke`
 
 ### Stage 11, gpu queue
 
-60. `feat(cluster): add a g6 queue with gpus as a slurm resource`
-61. `feat(jobs): add a smoke job listing every gpu on a node`
-62. `build(image): build a cuda image with cupy and cuquantum`
-63. `feat(mpi): add a cuda gate kernel on cupy arrays`
-64. `feat(mpi): exchange amplitudes between gpus over nccl`
-65. `test(mpi): check the gpu run's overlap with the cpu run`
-66. `feat(mpi): run the circuit on custatevec as the reference`
-67. `feat(jobs): submit the state-vector run across gpus`
-68. `feat(mpi): plot time per layer and cost by device`
-69. `docs(metrics): record gpu speed-up, scaling and cost per run`
-70. `docs: add the gpu path to the readme`
+64. `feat(cluster): add a g6 queue with gpus as a slurm resource`
+65. `feat(jobs): add a smoke job listing every gpu on a node`
+66. `build(image): build a cuda image with cupy and cuquantum`
+67. `feat(mpi): add a cuda gate kernel on cupy arrays`
+68. `feat(mpi): exchange amplitudes between gpus over nccl`
+69. `test(mpi): check the gpu run's overlap with the cpu run`
+70. `feat(mpi): run the circuit on custatevec as the reference`
+71. `feat(jobs): submit the state-vector run across gpus`
+72. `feat(mpi): plot time per layer and cost by device`
+73. `docs(metrics): record gpu speed-up, scaling and cost per run`
+74. `docs: add the gpu path to the readme`
 
 ### Stage 12, the decoder loop
 
-71. `feat(decoder): sample labelled syndromes from stim`
-72. `feat(jobs): generate the training set as a slurm array`
-73. `feat(decoder): add a recurrent decoder over syndrome rounds`
-74. `feat(decoder): train on one gpu and record the run`
-75. `feat(decoder): train across gpus with data parallelism`
-76. `feat(decoder): decode a cell with the trained model`
-77. `feat(sweep): choose the decoder per cell`
-78. `feat(jobs): chain generate, train and evaluate as one run`
-79. `feat(decoder): plot both decoders' error rates by distance`
-80. `docs(metrics): record the learned decoder against matching`
+75. `feat(decoder): sample labelled syndromes from stim`
+76. `feat(jobs): generate the training set as a slurm array`
+77. `feat(decoder): add a recurrent decoder over syndrome rounds`
+78. `feat(decoder): train on one gpu and record the run`
+79. `feat(decoder): train across gpus with data parallelism`
+80. `feat(decoder): decode a cell with the trained model`
+81. `feat(sweep): choose the decoder per cell`
+82. `feat(jobs): chain generate, train and evaluate as one run`
+83. `feat(decoder): plot both decoders' error rates by distance`
+84. `docs(metrics): record the learned decoder against matching`
 
 ### Stage 13, results as a versioned artifact
 
-81. `feat(jobs): record commit, image digest, seeds and parents`
-82. `feat(infra): lock the results prefix against overwrites`
-83. `feat(results): catalogue every run into one table`
-84. `feat(results): compare two runs with confidence intervals`
-85. `feat(models): promote a decoder by manifest and pull request`
-86. `docs(metrics): record audit coverage of every figure`
-87. `docs: add the loop and the catalogue to the readme`
+85. `feat(jobs): record seeds and parent runs`
+86. `feat(results): catalogue every run into one table`
+87. `feat(results): compare two runs with confidence intervals`
+88. `feat(models): promote a decoder by manifest and pull request`
+89. `docs(metrics): record audit coverage of every figure`
+90. `docs: add the loop and the catalogue to the readme`
 
 ### Stage 14, comparison site
 
-88. `feat(web): scaffold the site with vite and svelte`
-89. `feat(web): query the catalogue in the browser with duckdb`
-90. `feat(web): pick two runs from the catalogue`
-91. `feat(web): compare two runs cell by cell with intervals`
-92. `feat(web): draw error-rate curves for the chosen runs`
-93. `feat(web): show each run's provenance chain`
-94. `feat(web): add dark mode and a keyboard path through it all`
-95. `test(web): drive the comparison end to end in playwright`
-96. `ci(web): check types, tests and bundle size on pull request`
-97. `ci(web): publish the site with its data snapshot on merge`
-98. `docs(metrics): record the site's load, query and size`
-99. `docs: add the comparison site to the readme`
+91. `feat(web): scaffold the site with vite and svelte`
+92. `feat(web): query the catalogue in the browser with duckdb`
+93. `feat(web): pick two runs from the catalogue`
+94. `feat(web): compare two runs cell by cell with intervals`
+95. `feat(web): draw error-rate curves for the chosen runs`
+96. `feat(web): show each run's provenance chain`
+97. `feat(web): add dark mode and a keyboard path through it all`
+98. `test(web): drive the comparison end to end in playwright`
+99. `ci(web): check types, tests and bundle size on pull request`
+100. `ci(web): publish the site with its data snapshot on merge`
+101. `docs(metrics): record the site's load, query and size`
+102. `docs: add the comparison site to the readme`
 
 ### Stage 15, a shorter loop and a smaller bill
 
-100. `feat(tools): time the loop from commit to first cell`
-101. `perf(sweep): run the grid longest cells first`
-102. `perf(jobs): reuse a pulled image by its digest`
-103. `feat(cluster): bake apptainer and the image into an ami`
-104. `perf(cluster): shorten the sweep queue's idle tail`
-105. `build(image): build the sweep image for arm64 too`
-106. `feat(cluster): add a graviton queue beside the x86 one`
-107. `feat(jobs): run the grid on each type for cells per dollar`
-108. `perf(ci): cache the environment and skip unchanged images`
-109. `feat(tools): plot cost and loop time before and after`
-110. `docs(metrics): record the loop time and cost per sweep after`
-111. `docs: add the optimisation stage to the readme`
+103. `feat(tools): time the loop from commit to first cell`
+104. `perf(sweep): run the grid longest cells first`
+105. `perf(jobs): reuse a pulled image by its digest`
+106. `feat(cluster): bake apptainer and the image into an ami`
+107. `perf(cluster): shorten the sweep queue's idle tail`
+108. `build(image): build the sweep image for arm64 too`
+109. `feat(cluster): add a graviton queue beside the x86 one`
+110. `feat(jobs): run the grid on each type for cells per dollar`
+111. `perf(ci): cache the environment and skip unchanged images`
+112. `feat(tools): plot cost and loop time before and after`
+113. `docs(metrics): record the loop time and cost per sweep after`
+114. `docs: add the optimisation stage to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
