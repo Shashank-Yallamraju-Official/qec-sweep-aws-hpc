@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pyarrow as pa
@@ -34,10 +35,17 @@ def read(path: Path) -> CellResult:
     """Read back a file written by ``write()``."""
     row = pq.read_table(path).to_pylist()[0]
     cell = Cell(distance=row["distance"], noise=row["noise"], shots=row["shots"])
-    return CellResult(cell=cell, errors=row["errors"], seconds=row["seconds"], seed=row["seed"])
+    return CellResult(
+        cell=cell,
+        errors=row["errors"],
+        seconds=row["seconds"],
+        seed=row["seed"],
+        started=row["started"],
+        host=row["host"],
+    )
 
 
-def _row(result: CellResult) -> dict[str, int | float]:
+def _row(result: CellResult) -> dict[str, int | float | str | datetime]:
     cell = result.cell
     low, high = result.interval
     return {
@@ -50,4 +58,7 @@ def _row(result: CellResult) -> dict[str, int | float]:
         "ci_high": high,
         "seconds": result.seconds,
         "seed": result.seed,
+        "started": result.started,
+        "finished": result.finished,
+        "host": result.host,
     }

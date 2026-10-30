@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from math import sqrt
 
 import numpy as np
@@ -24,17 +26,27 @@ class CellResult:
         errors: Shots whose decoded correction disagreed with the true logical observable.
         seconds: Wall-clock time of sampling plus decoding.
         seed: Sampler seed, kept so the result can be reproduced bit for bit.
+        started: When sampling began, in UTC, so a run's throughput and its slow
+            tail can be read from the cells themselves.
+        host: The machine that decoded it.
     """
 
     cell: Cell
     errors: int
     seconds: float
     seed: int
+    started: datetime = field(default_factory=lambda: datetime.now(UTC))
+    host: str = field(default_factory=socket.gethostname)
 
     @property
     def logical_error_rate(self) -> float:
         """Fraction of shots that ended in a logical error."""
         return self.errors / self.cell.shots
+
+    @property
+    def finished(self) -> datetime:
+        """When decoding ended: the start plus the seconds it took."""
+        return self.started + timedelta(seconds=self.seconds)
 
     @property
     def interval(self) -> tuple[float, float]:
@@ -77,6 +89,7 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
     Returns:
         The error count with its timing, from which the rate and interval follow.
     """
+    started = datetime.now(UTC)
     start = time.perf_counter()
     circuit = stim.Circuit.generated(
         "surface_code:rotated_memory_z",
@@ -95,4 +108,6 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
         syndromes, bit_packed_shots=True, bit_packed_predictions=True
     )
     errors = int(np.any(predictions != observables, axis=1).sum())
-    return CellResult(cell=cell, errors=errors, seconds=time.perf_counter() - start, seed=seed)
+    return CellResult(
+        cell=cell, errors=errors, seconds=time.perf_counter() - start, seed=seed, started=started
+    )
