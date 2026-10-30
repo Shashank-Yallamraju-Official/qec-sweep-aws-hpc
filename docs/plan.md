@@ -81,9 +81,9 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 
 ### Stage 6, scale and cost
 
-37. `feat(jobs): tag every job for cost allocation`
+37. `feat(jobs): record each run's nodes and timing for costing`
 38. `feat(cluster): add a spot queue beside on-demand`
-39. `feat(tools): report cost per sweep from cost explorer by tag`
+39. `feat(tools): report cost per sweep from each run's record`
 40. `docs(metrics): record weak scaling and cost per sweep`
 
 ### Stage 7, tight coupling

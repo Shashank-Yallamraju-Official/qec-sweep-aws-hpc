@@ -36,7 +36,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | EFS | Nodes need one shared scratch filesystem for inputs, the image and job output | Chosen over FSx for Lustre because this account's plan cannot use FSx and the sweep writes one small file per cell; the parallel-I/O lesson is a known gap, recorded in the decisions table |
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
 | CI pipeline | Config drift and manual SSH | Validates the cluster YAML and builds the image on every PR; the cluster is a versioned artifact |
-| Budget alerts + job tags | Elastic compute makes cost a per-job number | Cost Explorer grouped by job tag gives cost per sweep, the metric cloud HPC is judged on |
+| Budget alerts + run records | Elastic compute makes cost a per-run number | Each run records its nodes and timing and is priced at the published rates, checked against Cost Explorer's daily total; grouping by tag needs the payer account, which this project does not hold |
 | DCV login node | Scientists use GUI simulation tools | Amazon DCV is the AWS remote-visualisation path; optional here, proves the pattern |
 
 ## Build order
@@ -48,7 +48,7 @@ Each stage adds one capability from the diagram and ends with a done-signal. Sta
 3. **Freeze the environment.** Build the Apptainer image in CI; rerun stage 2 from a fresh instance using only the image. Done: a bit-identical result. Metric: time-to-reproduce, from weeks of README-following to minutes.
 4. **Stand up ParallelCluster.** Commit the cluster YAML: one head node, one Slurm queue, EFS scratch. Submit `srun hostname` across two nodes. Done: nodes appear when a job queues and vanish ten minutes after idle. Metric: time-to-first-node.
 5. **Job array for the sweep.** One `sbatch --array` script maps task index to a (d, p) cell and runs the image; results to EFS, synced to S3 on exit. Done: the full grid completes and a logical-error-rate plot comes out. Metric: wall-clock for the sweep versus a laptop.
-6. **Scale and cost it.** Rerun at 4, 8 and 16 nodes with job tags; pull cost from Cost Explorer; add a spot queue beside on-demand. Done: a weak-scaling table and a cost-per-sweep figure. Metric: throughput per node and dollars per sweep.
+6. **Scale and cost it.** Rerun at 1, 4, 8 and 16 nodes, each run recording its nodes and timing; price the runs and check the total against Cost Explorer; add a spot queue beside on-demand. Done: a weak-scaling table and a cost-per-sweep figure. Metric: throughput per node and dollars per sweep.
 7. **Add tight coupling.** A state-vector simulator sharded across MPI ranks (mpi4py first, C++ second) on an EFA-enabled hpc7a queue. Done: a strong-scaling plot with efficiency falling as nodes rise, and an account of where the time goes. Metric: strong-scaling efficiency at 2, 4, 8 nodes.
 8. **Make the cluster a versioned artifact.** CI validates the cluster YAML, builds the image and runs a smoke job on every PR; Terraform owns IAM, S3 and the budget. Done: a node-type change reaches a running cluster through a pull request alone. Metric: changes shipped without SSH.
 9. **Graphical node, optional.** A DCV-enabled login node running a GUI tool (ParaView is enough). Done: a remote desktop session opens from a browser. Metric: none; this proves the CAE pattern.
@@ -80,7 +80,7 @@ The README reports these numbers. They are blank until the stage that produces t
 | Time-to-reproduce environment (min) | 3 | Fresh instance to first successful cell, image only | under 10 |
 | Time-to-first-node (min) | 4 | `sbatch` submit to node in `sinfo` idle state | under 5 |
 | Sweep wall-clock (min) | 5, 6 | Array submit to last cell written, at 1, 4, 8, 16 nodes | near linear in nodes |
-| Cost per sweep (USD) | 6 | Cost Explorer filtered by job tag, on-demand and spot | spot under one-third of on-demand |
+| Cost per sweep (USD) | 6 | Each run's node-seconds at the published on-demand and spot rates, checked against Cost Explorer's daily total | spot under one-third of on-demand |
 | Weak-scaling efficiency (%) | 6 | Cells per node-hour at 16 nodes over 1 node | above 90 |
 | Strong-scaling efficiency (%) | 7 | Fixed state-vector size, T(1) / (N x T(N)) at 2, 4, 8 | reported, with where time goes |
 | Changes shipped without SSH | 8 | Count of merged PRs that reached the cluster | all of them |
