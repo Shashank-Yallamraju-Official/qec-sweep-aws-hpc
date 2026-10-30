@@ -43,3 +43,9 @@ variable "github_actor_id" {
   default     = "245481804"
   description = "the GitHub account whose workflow runs may use the deploy runner"
 }
+
+variable "github_connection_arn" {
+  type        = string
+  default     = "arn:aws:codeconnections:us-east-2:523520772490:connection/8f0cdd19-073e-4903-ae99-12228cf856e7"
+  description = "the CodeConnections connection to GitHub, created and authorised in the console"
+}
