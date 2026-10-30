@@ -8,7 +8,7 @@ Tags:
 HeadNode:
   InstanceType: t3.medium
   Networking:
-    # us-east-2b is the one zone here that also offers hpc7a, for the MPI queue later.
+    # us-east-2b is the one zone here that also offers the HPC instance types.
     SubnetId: &subnet subnet-0b765c6a2d2523330
   Iam: &node-iam
     AdditionalIamPolicies:
@@ -56,6 +56,26 @@ Scheduling:
       Networking:
         SubnetIds:
           - *subnet
+      Iam: *node-iam
+      CustomActions: *configure
+    # Tightly coupled ranks: EFA carries the exchanges, one placement group keeps
+    # the nodes close, and on demand because one lost rank kills the whole job.
+    # hpc6a rather than hpc7a: hpc7a's two network cards rule out a public IP,
+    # so it needs a private subnet and a NAT gateway; hpc6a has one card and
+    # costs two fifths as much.
+    - Name: mpi
+      ComputeResources:
+        - Name: hpc6a
+          InstanceType: hpc6a.48xlarge
+          MinCount: 0
+          MaxCount: 8
+          Efa:
+            Enabled: true
+      Networking:
+        SubnetIds:
+          - *subnet
+        PlacementGroup:
+          Enabled: true
       Iam: *node-iam
       CustomActions: *configure
 
