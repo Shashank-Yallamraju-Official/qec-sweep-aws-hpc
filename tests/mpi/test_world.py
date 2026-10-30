@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,19 @@ def state_under(ranks: int, qubits: int, scratch: Path) -> Amplitudes:
 @pytest.mark.parametrize("ranks", [2, 4])
 def test_sharded_run_matches_a_single_rank_run(ranks: int, tmp_path: Path) -> None:
     assert np.allclose(state_under(ranks, 6, tmp_path), state_under(1, 6, tmp_path))
+
+
+def test_the_command_records_a_run_on_four_ranks(tmp_path: Path) -> None:
+    out = tmp_path / "run.json"
+    command = [sys.executable, "-m", "mpi.cli", "--qubits", "6", "--layers", "3", "--out", str(out)]
+    subprocess.run(
+        [str(MPIEXEC), "--oversubscribe", "-n", "4", *command], check=True, cwd=REPO, timeout=120
+    )
+    record = json.loads(out.read_text())
+    assert record["ranks"] == 4
+    assert record["gates"]["far"] > 0
+    assert record["seconds"]["exchange"] > 0
+    assert np.isclose(record["norm"], 1)
 
 
 def test_the_single_rank_run_is_a_normalised_entangled_state(tmp_path: Path) -> None:

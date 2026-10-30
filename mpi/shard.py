@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
 import numpy as np
 
+from mpi.account import Account
 from mpi.exchange import Amplitudes, Exchange
 from mpi.gates import Gate
 
@@ -16,6 +19,9 @@ class Shard:
     A gate on local qubits is a local operation. A gate on global qubits first
     collects the slices of every rank that differs in those bits, so each holds
     every set of amplitudes the gate mixes, and keeps its own slice of the result.
+
+    Attributes:
+        account: Gates applied and time spent, kept as gates are applied.
     """
 
     def __init__(self, qubits: int, exchange: Exchange, amplitudes: Amplitudes) -> None:
@@ -25,6 +31,7 @@ class Shard:
         if amplitudes.shape != (1 << self.local_qubits,):
             msg = f"a rank holds 2**{self.local_qubits} amplitudes here, not {len(amplitudes)}"
             raise ValueError(msg)
+        self.account = Account()
         self._exchange = exchange
         self._amplitudes = amplitudes
 
@@ -46,6 +53,12 @@ class Shard:
         """This rank's slice, in index order."""
         return self._amplitudes
 
+    def norm(self) -> float:
+        """The norm of the whole state, on every rank; one, unless something went wrong."""
+        return float(
+            np.sqrt(self._exchange.total(float(np.vdot(self._amplitudes, self._amplitudes).real)))
+        )
+
     def apply(self, gate: Gate, on: tuple[int, ...]) -> None:
         """Apply ``gate`` to the qubits ``on``, the first listed most significant in its matrix.
 
@@ -53,6 +66,7 @@ class Shard:
             ValueError: If the qubits do not fit the gate or the state.
         """
         self._check(gate, on)
+        started, exchanged = perf_counter(), self.account.exchange_seconds
         far = sorted((q for q in on if q >= self.local_qubits), reverse=True)
         group = self._collect(far)
         tensor = group.reshape((2,) * (len(far) + self.local_qubits))
@@ -61,6 +75,8 @@ class Shard:
         mixed = np.tensordot(operator, tensor, axes=(list(range(gate.arity, 2 * gate.arity)), axes))
         mixed = np.moveaxis(mixed, list(range(gate.arity)), axes)
         self._amplitudes = mixed.reshape(len(group), -1)[self._slot(far)].copy()
+        swapped = self.account.exchange_seconds - exchanged
+        self.account.gate(far=bool(far), compute_seconds=perf_counter() - started - swapped)
 
     def _check(self, gate: Gate, on: tuple[int, ...]) -> None:
         if len(on) != gate.arity or len(set(on)) != len(on):
@@ -84,7 +100,9 @@ class Shard:
         group[slot] = self._amplitudes
         for step in range(1, len(group)):
             peer = self._rank_at(far, slot ^ step)
+            started = perf_counter()
             group[slot ^ step] = self._exchange.swap(self._amplitudes, peer)
+            self.account.exchange_seconds += perf_counter() - started
         return group
 
     def _slot(self, far: list[int]) -> int:

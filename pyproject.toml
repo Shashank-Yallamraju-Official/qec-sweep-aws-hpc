@@ -26,6 +26,7 @@ dev = [
 sweep = "sweep.cli:main"
 sweep-reduce = "sweep.reduce:main"
 sweep-plot = "sweep.plot:main"
+statevector = "mpi.cli:main"
 
 [project.optional-dependencies]
 mpi = [
@@ -53,6 +54,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "sweep/cli.py" = ["T201"]
 "sweep/reduce.py" = ["T201"]
 "sweep/plot.py" = ["T201"]
+"mpi/cli.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
