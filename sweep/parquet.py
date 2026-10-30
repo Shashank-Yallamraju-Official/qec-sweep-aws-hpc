@@ -32,8 +32,15 @@ def write(result: CellResult, out_dir: Path) -> Path:
 
 
 def read(path: Path) -> CellResult:
-    """Read back a file written by ``write()``."""
+    """Read back a file written by ``write()``.
+
+    Raises:
+        ValueError: For a file from before stage 8, which has no start, finish or host.
+    """
     row = pq.read_table(path).to_pylist()[0]
+    if "started" not in row:
+        msg = f"{path} predates the timing columns; it has no start, finish or host"
+        raise ValueError(msg)
     cell = Cell(distance=row["distance"], noise=row["noise"], shots=row["shots"])
     return CellResult(
         cell=cell,
