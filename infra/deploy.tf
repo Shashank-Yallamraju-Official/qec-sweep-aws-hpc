@@ -101,10 +101,16 @@ resource "aws_codebuild_project" "runner" {
 # the workflow named deploy, which only runs on main, and on the repository
 # owner as the actor: a pull request that edits a workflow to ask for the
 # deploy runner gets nothing.
+# GitHub refused to let CodeBuild register these hooks itself through the app
+# installation, so CodeBuild only issues the endpoint and secret here and the
+# repository's hooks are created once by hand from the outputs below:
+#   gh api repos/<repo>/hooks -f 'events[]=workflow_job' -f config[url]=<payload_url>
+#     -f config[secret]=<secret> -f config[content_type]=json
 resource "aws_codebuild_webhook" "runner" {
-  for_each     = local.runners
-  project_name = aws_codebuild_project.runner[each.key].name
-  build_type   = "BUILD"
+  for_each        = local.runners
+  project_name    = aws_codebuild_project.runner[each.key].name
+  build_type      = "BUILD"
+  manual_creation = true
   filter_group {
     filter {
       type    = "EVENT"

@@ -23,3 +23,9 @@ output "deploy_runner" {
   value       = aws_codebuild_project.runner["deploy"].name
   description = "the same label form, for jobs on main"
 }
+
+output "runner_webhooks" {
+  value       = { for k, w in aws_codebuild_webhook.runner : k => { url = w.payload_url, secret = w.secret } }
+  sensitive   = true
+  description = "what each GitHub repository hook must carry; see infra/deploy.tf"
+}
