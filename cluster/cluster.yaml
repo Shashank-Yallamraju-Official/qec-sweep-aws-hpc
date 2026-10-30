@@ -43,6 +43,20 @@ Scheduling:
           - *subnet
       Iam: *node-iam
       CustomActions: *configure
+    # Cells are idempotent and short, so an interruption costs one cell; spot
+    # cuts the sweep's bill by roughly two-thirds.
+    - Name: sweep-spot
+      CapacityType: SPOT
+      ComputeResources:
+        - Name: c7a
+          InstanceType: c7a.large
+          MinCount: 0
+          MaxCount: 16
+      Networking:
+        SubnetIds:
+          - *subnet
+      Iam: *node-iam
+      CustomActions: *configure
 
 SharedStorage:
   - Name: scratch
