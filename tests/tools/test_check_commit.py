@@ -87,6 +87,15 @@ def test_main_reads_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert main([str(message)]) == 0
 
 
+def test_main_checks_the_plan(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(f"1. `{GOOD}`\n2. `fix(docs): {'x' * 60}`\nnot a `subject` at all\n")
+    assert main(["--plan", str(plan)]) == 1
+    assert "71 characters" in capsys.readouterr().out
+    plan.write_text(f"1. `{GOOD}`\n")
+    assert main(["--plan", str(plan)]) == 0
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(
         ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
@@ -130,6 +139,6 @@ def test_rejects_known_trailers(trailer: str) -> None:
     assert "trailer" in problem
 
 
-@pytest.mark.parametrize("scope", ["hooks", "ci", "docs"])
-def test_accepts_scopes_for_hooks_ci_and_docs(scope: str) -> None:
+@pytest.mark.parametrize("scope", ["hooks", "ci", "docs", "decoder", "results", "models", "web"])
+def test_accepts_the_planned_scopes(scope: str) -> None:
     assert check(f"fix({scope}): add x") == []
