@@ -67,3 +67,10 @@ def test_a_failed_write_leaves_nothing_under_the_cell_name(
     with pytest.raises(OSError, match="reclaimed"):
         write(RESULT, tmp_path)
     assert not (tmp_path / "d5_p0.001_s100000.parquet").exists()
+
+
+def test_a_file_from_before_the_timing_columns_is_named_as_such(tmp_path: Path) -> None:
+    old = pq.read_table(write(RESULT, tmp_path)).drop_columns(["started", "finished", "host"])
+    pq.write_table(old, tmp_path / "old.parquet")
+    with pytest.raises(ValueError, match="predates"):
+        read(tmp_path / "old.parquet")

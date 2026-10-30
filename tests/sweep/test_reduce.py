@@ -36,3 +36,14 @@ def test_main_writes_one_parquet_table(tmp_path: Path, capsys: pytest.CaptureFix
     assert main([str(cells), str(out)]) == 0
     assert pq.read_table(out).num_rows == 3
     assert capsys.readouterr().out.strip() == f"3 cells -> {out}"
+
+
+def test_reduce_cells_folds_in_files_from_before_the_timing_columns(tmp_path: Path) -> None:
+    results(tmp_path)
+    old = pq.read_table(tmp_path / "d5_p0.01_s1000.parquet").drop_columns(
+        ["started", "finished", "host"]
+    )
+    pq.write_table(old, tmp_path / "d5_p0.01_s1000.parquet")
+    table = reduce_cells(tmp_path)
+    assert table.num_rows == 3
+    assert table.column("host").null_count == 1

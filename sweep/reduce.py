@@ -21,7 +21,8 @@ def reduce_cells(cells: Path) -> pa.Table:
     if not files:
         msg = f"no cell files under {cells}"
         raise FileNotFoundError(msg)
-    table = pa.concat_tables([pq.read_table(f) for f in files])
+    # Cells from before stage 8 lack the timing columns; they fold in as nulls.
+    table = pa.concat_tables([pq.read_table(f) for f in files], promote_options="default")
     return table.sort_by([("distance", "ascending"), ("noise", "ascending")])
 
 
