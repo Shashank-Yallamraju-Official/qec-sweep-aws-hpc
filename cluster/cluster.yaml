@@ -37,7 +37,8 @@ Scheduling:
         - Name: c7a
           InstanceType: c7a.large
           MinCount: 0
-          MaxCount: 4
+          # Seven two-vCPU nodes plus the head node fill a new account's 16-vCPU quota.
+          MaxCount: 7
       Networking:
         SubnetIds:
           - *subnet
