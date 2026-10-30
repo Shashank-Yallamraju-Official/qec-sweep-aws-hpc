@@ -29,3 +29,30 @@ jobs:
             > dryrun.json || true
           jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' dryrun.json
           jq -e '.message == "Request would have succeeded, but DryRun flag is set."' dryrun.json
+
+  smoke:
+    # Proves a running cluster still schedules work. The runner may send one fixed
+    # Systems Manager document to the head node and nothing else; with no cluster
+    # up there is nothing to prove, and the job says so and passes.
+    runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - id: head
+        run: |
+          head=$(aws ec2 describe-instances --region us-east-2 \
+            --filters Name=tag:parallelcluster:cluster-name,Values=qec \
+                      Name=tag:parallelcluster:node-type,Values=HeadNode \
+                      Name=instance-state-name,Values=running \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          echo "id=$head" >> "$GITHUB_OUTPUT"
+          [[ -n $head ]] || echo "no cluster is running; nothing to smoke"
+      - if: steps.head.outputs.id != ''
+        run: |
+          command=$(aws ssm send-command --region us-east-2 --document-name qec-sweep-smoke \
+            --instance-ids "${{ steps.head.outputs.id }}" --query Command.CommandId --output text)
+          invocation() {
+            aws ssm get-command-invocation --region us-east-2 --command-id "$command" \
+              --instance-id "${{ steps.head.outputs.id }}" --query "$1" --output text 2>/dev/null
+          }
+          until status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]]; do sleep 15; done
+          invocation '[StandardOutputContent,StandardErrorContent]'
+          [[ $status == Success ]]
