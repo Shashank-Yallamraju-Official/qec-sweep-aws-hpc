@@ -7,18 +7,13 @@
 # ParallelCluster documents for its own user plus what Terraform needs for the
 # resources in this directory, by name.
 
+# The GitHub connection itself is made in the console, once, because installing
+# the GitHub app is the one step that needs a browser; Terraform takes its ARN.
 locals {
   account         = data.aws_caller_identity.current.account_id
   repository_url  = "https://github.com/${var.github_repository}.git"
   parallelcluster = "arn:aws:iam::${local.account}:role/parallelcluster/*"
   runners         = toset(["plan", "deploy"])
-}
-
-# Authorised once, by hand, in the console: the GitHub app installation is the
-# one step that needs a browser.
-resource "aws_codeconnections_connection" "github" {
-  name          = "qec-sweep-github"
-  provider_type = "GitHub"
 }
 
 data "aws_iam_policy_document" "codebuild_assume" {
@@ -52,7 +47,7 @@ data "aws_iam_policy_document" "runner" {
   statement {
     sid       = "Clone"
     actions   = ["codeconnections:GetConnectionToken", "codeconnections:GetConnection", "codeconnections:UseConnection"]
-    resources = [aws_codeconnections_connection.github.arn]
+    resources = [var.github_connection_arn]
   }
 }
 
@@ -78,7 +73,7 @@ resource "aws_codebuild_project" "runner" {
     location = local.repository_url
     auth {
       type     = "CODECONNECTIONS"
-      resource = aws_codeconnections_connection.github.arn
+      resource = var.github_connection_arn
     }
   }
   artifacts {
