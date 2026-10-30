@@ -40,11 +40,17 @@ jobs:
             --query 'Reservations[].Instances[].InstanceId' --output text)
           echo "id=$head" >> "$GITHUB_OUTPUT"
           [[ -n $head ]] || echo "no cluster is running; nothing to update"
+      - name: ship the files the cluster fetches from the bucket
+        # Nodes run the configure script from the bucket as they boot, and the
+        # smoke job takes the latest scripts from cluster/jobs.tgz.
+        run: |
+          aws s3 cp --quiet cluster/on-node-configured.sh "s3://$BUCKET/cluster/on-node-configured.sh"
+          tar czf jobs.tgz jobs
+          aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz"
+          aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs.tgz"
       - if: steps.head.outputs.id != ''
         name: install the job scripts
         run: |
-          tar czf jobs.tgz jobs
-          aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz"
           command=$(aws ssm send-command --document-name qec-sweep-install-jobs \
             --instance-ids "${{ steps.head.outputs.id }}" \
             --parameters "jobs=s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz,commit=$GITHUB_SHA" \
@@ -53,9 +59,12 @@ jobs:
             aws ssm get-command-invocation --command-id "$command" \
               --instance-id "${{ steps.head.outputs.id }}" --query "$1" --output text 2>/dev/null
           }
-          until status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]]; do sleep 10; done
+          for _ in $(seq 1 30); do
+            status=$(invocation Status) && [[ $status != @(Pending|InProgress|Delayed) ]] && break
+            sleep 10
+          done
           invocation '[StandardOutputContent,StandardErrorContent]'
-          [[ $status == Success ]]
+          [[ ${status:-} == Success ]]
       - if: steps.head.outputs.id != ''
         name: apply the cluster configuration
         run: |
@@ -72,6 +81,17 @@ jobs:
           jq -r '.message // empty, (.updateValidationErrors // [] | .[] | "\(.parameter): \(.message)")' dryrun.json
           if jq -e '.message | test("No changes found")' dryrun.json >/dev/null; then exit 0; fi
           jq -e '.message | test("would have succeeded")' dryrun.json >/dev/null
+          # Stopping the fleet ends every running job. Compute nodes stay up for ten
+          # minutes after their last job, so a fleet with none is safely idle.
+          busy=$(aws ec2 describe-instances \
+            --filters "Name=tag:parallelcluster:cluster-name,Values=$CLUSTER" \
+                      Name=tag:parallelcluster:node-type,Values=Compute \
+                      Name=instance-state-name,Values=pending,running \
+            --query 'length(Reservations[].Instances[])')
+          if (( busy > 0 )); then
+            echo "::error::$busy compute nodes are up; the update waits for an idle fleet. Re-run this workflow later."
+            exit 1
+          fi
           fleet STOP STOPPED
           pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration cluster/cluster.yaml >/dev/null
           until s=$(pcluster describe-cluster --cluster-name "$CLUSTER" | jq -r .clusterStatus) \
