@@ -14,3 +14,4 @@ __pycache__/
 *.tfstate.*
 *.tfvars
 .terraform-validate/
+mpi/libkernel.so

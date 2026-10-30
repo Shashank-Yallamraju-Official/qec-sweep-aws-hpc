@@ -11,6 +11,7 @@ from time import perf_counter
 
 from mpi.circuit import brickwork
 from mpi.exchange import Exchange, World
+from mpi.kernel import KERNEL
 from mpi.shard import Shard
 
 
@@ -59,6 +60,7 @@ def run(qubits: int, layers: int, exchange: Exchange) -> dict[str, object]:
         "qubits": qubits,
         "layers": layers,
         "ranks": exchange.size,
+        "kernel": KERNEL.name,
         "gates": {"local": account.local_gates, "far": account.far_gates},
         "seconds": {
             "total": exchange.maximum(elapsed),

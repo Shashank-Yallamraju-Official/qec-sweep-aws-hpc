@@ -15,7 +15,7 @@ From: ubuntu@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127e
     set -eu
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y --no-install-recommends ca-certificates curl gcc python3 python3-dev python3-venv
+    apt-get install -y --no-install-recommends ca-certificates curl g++ gcc python3 python3-dev python3-venv
     curl -fsSL -o /tmp/efa.tar.gz https://efa-installer.amazonaws.com/aws-efa-installer-1.49.0.tar.gz
     echo "cf2e9281a2328a243c76f911a490faed43ca0fecfe4733c25e34b2e92a32c309  /tmp/efa.tar.gz" | sha256sum -c
     tar -xzf /tmp/efa.tar.gz -C /tmp
@@ -24,6 +24,7 @@ From: ubuntu@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127e
     python3 -m venv /opt/venv
     MPICC=/opt/amazon/openmpi/bin/mpicc /opt/venv/bin/pip install --no-cache-dir --quiet --no-deps --no-binary mpi4py -r /opt/mpi/packages.txt
     /opt/venv/bin/pip install --no-cache-dir --quiet --no-deps /opt/mpi/*.whl
+    /opt/venv/bin/python -c 'from mpi.kernel import build; build()'
     rm -rf /tmp/efa.tar.gz /tmp/aws-efa-installer /var/lib/apt/lists/*
 
 %environment

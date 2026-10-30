@@ -26,9 +26,8 @@ class Gate:
     matrix: Matrix
 
     def __post_init__(self) -> None:
-        side = self.matrix.shape[0]
-        if self.matrix.shape != (side, side) or side < 2 or side & (side - 1):  # noqa: PLR2004
-            msg = f"{self.name}: a gate is square with a power-of-two side, not {self.matrix.shape}"
+        if self.matrix.shape not in {(2, 2), (4, 4)}:
+            msg = f"{self.name}: a gate is square on one or two qubits, not {self.matrix.shape}"
             raise ValueError(msg)
 
     @property
