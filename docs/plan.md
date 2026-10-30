@@ -1,6 +1,6 @@
 # Plan
 
-The design is in [design.md](design.md). This file is the order of work: eleven stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
+The design is in [design.md](design.md). This file is the order of work: thirteen stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
 
 ## Stages
 
@@ -17,6 +17,8 @@ The design is in [design.md](design.md). This file is the order of work: eleven 
 | 9 | Graphical login node (optional) | A remote desktop session opens from a browser | none; proves the pattern |
 | 10 | Write-up | README with the diagram, the metrics table and what broke | |
 | 11 | The same simulation on GPUs | The state-vector run completes on one GPU, then across the GPUs of one node and of two, with the amplitudes matching the CPU run | time per layer and dollars per run on one `g6` GPU against one `hpc6a` node and the laptop; scaling efficiency at 2 and 4 GPUs over PCIe and at 8 across two nodes; the overlap of the single-precision GPU state with the double-precision CPU state, above 1 - 1e-6; the hand-written kernel's time per layer over cuStateVec's, within 2x. The G-instance quota starts at zero like the HPC one; the request goes in before the stage starts |
+| 12 | The decoder loop: generate, train, evaluate | A learned decoder trained on the cluster decodes cells of the grid beside PyMatching, and one chained run goes from samples to a comparison plot without a hand in between | logical error rate of the learned decoder over PyMatching's at distances 3 and 5, with 95% intervals, under depolarising and under correlated circuit-level noise; below one at distance 5 under correlated noise with the intervals apart is the win; GPU-hours and dollars to train; shots and CPU-hours to generate and to evaluate |
+| 13 | Results as a versioned artifact | Every figure in the README walks back to its run record, image digest, commit and inputs through S3 keys alone; the report page rebuilds on every merge; a decoder is promoted by a pull request | audit coverage: figures with a complete provenance chain over figures reported, all of them; time from merge to a refreshed report page |
 
 ## Commits
 
@@ -132,6 +134,31 @@ The design is in [design.md](design.md). This file is the order of work: eleven 
 69. `docs(metrics): record gpu speed-up, scaling and cost per run`
 70. `docs: add the gpu path to the readme`
 
+### Stage 12, the decoder loop
+
+71. `feat(decoder): sample labelled syndromes from stim`
+72. `feat(jobs): generate the training set as a slurm array`
+73. `feat(decoder): add a recurrent decoder over syndrome rounds`
+74. `feat(decoder): train on one gpu and record the run`
+75. `feat(decoder): train across gpus with data parallelism`
+76. `feat(decoder): decode a cell with the trained model`
+77. `feat(sweep): choose the decoder per cell`
+78. `feat(jobs): chain generate, train and evaluate as one run`
+79. `feat(decoder): plot both decoders' error rates by distance`
+80. `docs(metrics): record the learned decoder against matching`
+
+### Stage 13, results as a versioned artifact
+
+81. `feat(jobs): record commit, image digest, seeds and parents`
+82. `feat(infra): lock the results prefix against overwrites`
+83. `feat(results): catalogue every run into one table`
+84. `feat(results): compare two runs with confidence intervals`
+85. `feat(results): render the catalogue as a static report`
+86. `ci(results): publish the report on merge to main`
+87. `feat(models): promote a decoder by manifest and pull request`
+88. `docs(metrics): record audit coverage of every figure`
+89. `docs: add the loop and the report to the readme`
+
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
 ## Enforcement
@@ -139,7 +166,7 @@ Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory the
 One rulebook, run from three places. `.pre-commit-config.yaml` and `tools/check_commit.py` hold the rules. Git hooks run them at commit time. A Claude Code hook runs them on each file the moment it is written, so a problem surfaces at the edit rather than at the commit. GitHub Actions runs them on every pull request as the backstop, and `main` only accepts pull requests, rebase-merged, with linear history.
 
 - One branch per stage, `stage-NN-<scope>`. Commits follow this list in order.
-- A commit message is `<type>(<scope>): <subject>`, the scope being a top-level directory (sweep, mpi, jobs, cluster, image, infra, tools, metrics, hooks, ci, docs) or omitted for repo-wide changes: first line at most 60 characters, imperative, lowercase, no full stop; body only when the diff cannot say why; no trailers. `tools/check_commit.py` is the rule and the hook runs it.
+- A commit message is `<type>(<scope>): <subject>`, the scope being a top-level directory (sweep, mpi, decoder, results, models, jobs, cluster, image, infra, tools, metrics, hooks, ci, docs) or omitted for repo-wide changes: first line at most 60 characters, imperative, lowercase, no full stop; body only when the diff cannot say why; no trailers. `tools/check_commit.py` is the rule and the hook runs it.
 - Python is checked by ruff with every rule on, including Google-style docstrings on everything public, mypy strict, and pytest. Shell by shellcheck, YAML by yamllint, workflows by actionlint. Terraform by `terraform fmt` and `validate` from the first infra commit.
 - Infrastructure is Terraform under `infra/`, state in S3. The state bucket `qec-sweep-tfstate-<account>` is the one resource made by hand, once, with versioning on.
 - Process is measured. Claude Code hooks log each edit, test run and commit attempt; `tools/process_report.py` turns the log into active minutes, edits, rejected edits and commit attempts per commit. Each stage's pull request carries its table; the README carries one row per stage.

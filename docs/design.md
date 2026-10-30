@@ -6,7 +6,7 @@ Oct 27, 2026 · @Shashank Yallamraju
 
 This project runs a quantum error-correction (QEC) decoder sweep on an HPC cluster built on AWS entirely as code. It exists to answer one question: can a scientist describe a computation and get a reproducible, cost-governed result back without touching infrastructure?
 
-The sweep itself is the test cargo. The deliverable is the platform around it: a Slurm cluster that provisions itself, a frozen environment, a job-array pattern for parameter sweeps, an MPI path for tightly coupled work, a CI pipeline that treats the cluster as a versioned artifact, and a GPU path that runs the same tightly coupled simulation on the hardware a quantum team would use for it.
+The sweep itself is the test cargo. The deliverable is the platform around it: a Slurm cluster that provisions itself, a frozen environment, a job-array pattern for parameter sweeps, an MPI path for tightly coupled work, a CI pipeline that treats the cluster as a versioned artifact, a GPU path that runs the same tightly coupled simulation on the hardware a quantum team would use for it, a decoder-training loop that ties the queues into one pipeline, and results that are themselves a versioned, auditable artifact.
 
 Each stage adds one capability and reports one metric, so a reader can see what was added, why it was needed, and whether it worked.
 
@@ -37,6 +37,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
 | CI pipeline | Config drift and manual SSH | Validates the cluster YAML and builds the image on every PR; the cluster is a versioned artifact |
 | Budget alerts + run records | Elastic compute makes cost a per-run number | Each run records its nodes and timing and is priced at the published rates, checked against Cost Explorer's daily total; grouping by tag needs the payer account, which this project does not hold |
+| Run records, catalogue, report | A result must be comparable with last month's and traceable to what produced it | Each run writes its record and outputs under its own S3 key, naming the commit, image digest, seeds and parent runs; a catalogue table over those records answers questions through DuckDB without a server, and a static report built by CI on every merge is the view. MLflow or Weights & Biases would do the same with a server or a SaaS account and a second source of truth |
 | DCV login node | Scientists use GUI simulation tools | Amazon DCV is the AWS remote-visualisation path; optional here, proves the pattern |
 
 ## Build order
@@ -54,6 +55,8 @@ Each stage adds one capability from the diagram and ends with a done-signal. Sta
 9. **Graphical node, optional.** A DCV-enabled login node running a GUI tool (ParaView is enough). Done: a remote desktop session opens from a browser. Metric: none; this proves the CAE pattern.
 10. **Write it up.** README with the diagram above, the metrics table below and three paragraphs on what broke.
 11. **The same simulation on GPUs.** A `g6` queue with GPUs as a Slurm resource, a CUDA image with CuPy and cuQuantum, and the stage 7 simulator with a CUDA gate kernel behind the same kernel interface and an NCCL exchange behind the same exchange protocol, one rank per GPU. cuStateVec runs the same circuit as the vendor reference. Done: the run completes on one GPU, across the four GPUs of one node and the eight of two, and the single-precision GPU state overlaps the double-precision CPU state to within 1e-6. Metric: time per layer and dollars per run against the `hpc6a` node and the laptop, scaling efficiency across GPUs, and the hand-written kernel against cuStateVec.
+12. **The decoder loop.** Stim samples labelled syndrome histories as a job array on the sweep queue; a recurrent decoder over syndrome rounds trains on the GPU queue, one GPU at distance 3 and 5 and data-parallel across GPUs where it pays; the trained model becomes a decoder choice in the sweep's cell contract, so evaluation is the stage 5 grid with a decoder axis, at the low noise rates where logical errors are rare and the shot counts are large. One chained run goes from samples to the comparison plot. The architecture is a published one reproduced honestly; the noise models are Stim's depolarising circuit-level noise and a correlated variant where matching is known to be suboptimal. Done: the chain runs without a hand in between. Metric: the learned decoder's logical error rate over PyMatching's with intervals, and what the loop cost.
+13. **Results as a versioned artifact.** The run record grows the commit, image digest, cluster configuration hash, Slurm job ids, seeds and parent run ids, so every result is a node in a provenance graph of S3 keys; the results prefix is locked against overwrites; a catalogue table collects every record; `compare` joins two runs cell by cell and refuses to call a difference significant when the intervals overlap; `report` renders the catalogue and comparisons as a static page that CI publishes on merge; a decoder is promoted by a manifest under `models/` changed through a pull request whose checks run the comparison. Done: every figure in the README walks back to its inputs through keys alone. Metric: audit coverage, and merge-to-report time.
 
 ## Decisions and alternatives
 
@@ -74,6 +77,10 @@ Every choice below was made for a reason a reader of the README should be able t
 | Own CUDA kernel, cuStateVec as reference | cuStateVec only | The library would be faster to adopt, but the point of the stage is to show where a GPU's time goes, and a kernel one can read is the only way to see it; the library is run beside it so the reader can judge the gap |
 | NCCL for the GPU exchange | CUDA-aware MPI | Both move device memory without a host copy; NCCL is what every multi-GPU code uses, needs no particular MPI build, and runs over EFA through the aws-ofi-nccl plugin when a node has one. MPI stays for bootstrap only |
 | Single precision on the GPU | Double, as on the CPU | An L4 does double precision at a sixty-fourth of its single rate, which would make the comparison about the card's arithmetic units rather than the simulation; single precision with a measured overlap against the double-precision CPU state is what GPU simulators ship |
+| A recurrent decoder over syndrome rounds | A transformer in the AlphaQubit style | The transformer is the published best, and far too large to train honestly on a few GPUs for a portfolio; a recurrent decoder has beaten matching at distance 3 and 5 in the literature, trains in GPU-hours, and the loop around it is the deliverable |
+| Evaluate through the sweep's cell contract | A separate evaluation harness | One decoder axis on the existing grid reuses the array, the records, the reducer and the plot, and makes the comparison with matching the same code path for both |
+| Own records, DuckDB over S3, static report | MLflow or Weights & Biases | Either tracks experiments well and most data scientists reach for one first; both add a server or an account and a second copy of the truth. The records already exist in S3, DuckDB queries them without a server, and a page built by CI is versioned with the commit that built it |
+| Promote a model by pull request | A registry with stages | The registry is a manifest in git pointing at an S3 key and a digest; the audit trail is the PR, which is where this project keeps every other decision |
 | `g6.12xlarge` | `p4d.24xlarge` | Eight A100s on NVLink with EFA is the proper multi-GPU machine at seven times the price; `g6` answers the single-GPU and PCIe-scaling questions for a few dollars, and the `p4d` point is optional |
 
 ## What is measured
@@ -93,6 +100,10 @@ The README reports these numbers. They are blank until the stage that produces t
 | Multi-GPU scaling efficiency (%) | 11 | T(1) / (N x T(N)) at 2 and 4 GPUs in one node and 8 across two | reported; the two-node point shows what a 40 Gbit/s link does to it |
 | GPU state fidelity | 11 | Overlap of the single-precision GPU state with the double-precision CPU state | above 1 - 1e-6 |
 | Kernel against cuStateVec (x) | 11 | The hand-written kernel's time per layer over cuStateVec's on the same card | within 2 |
+| Learned decoder over matching (ratio) | 12 | Logical error rate ratio at distances 3 and 5, noise rates 1e-3 to 5e-3, 95% intervals from the same shots | below 1 at distance 5 under correlated noise, intervals apart |
+| Cost of the loop (USD, GPU-hours, CPU-hours) | 12 | From each chained run's records: generate, train, evaluate | reported |
+| Audit coverage (%) | 13 | README figures whose record, digest, commit and inputs resolve through S3 keys alone, over figures reported | 100 |
+| Merge-to-report (min) | 13 | Merge on main to a refreshed report page | under 10 |
 
 The two scaling numbers are the ones an HPC reader will look for first; the cost number is the one a cloud reader will. Reporting both is the point of the project.
 
@@ -104,7 +115,9 @@ Out of scope, and said so to keep the README honest:
 - GPU simulation beyond one node pair; stage 11 covers one `g6` node and two, and leaves NVLink and GPUDirect over EFA to a `p4d` point that is optional.
 - Tensor-network simulation; the state vector is the workload throughout.
 - Multi-user fairness, accounting or authentication; this is a single-user cluster.
-- Real-time decoding; the sweep is batch.
+- Real-time decoding; the sweep is batch, and the learned decoder is judged on accuracy and cost, not latency.
+- Beating matching above distance 5, or on device data; the decoder stage reproduces a published result and measures it honestly.
+- Multi-user experiment tracking; the catalogue and report serve one team reading one bucket.
 
 Cost guardrails, set before stage 2:
 
