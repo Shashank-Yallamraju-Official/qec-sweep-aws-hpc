@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from mpi.gates import Gate, H, T, X
+from mpi.gates import CNOT, CZ, Gate, H, T, X
 
 
 @pytest.mark.parametrize("gate", [H, T, X])
@@ -10,8 +10,15 @@ def test_single_qubit_gates_are_unitary(gate: Gate) -> None:
     assert np.allclose(gate.matrix @ gate.matrix.conj().T, np.eye(2))
 
 
-def test_arity_follows_the_matrix_side() -> None:
-    assert Gate("swap", np.eye(4, dtype=np.complex128)).arity == 2
+@pytest.mark.parametrize("gate", [CNOT, CZ])
+def test_two_qubit_gates_are_unitary(gate: Gate) -> None:
+    assert gate.arity == 2
+    assert np.allclose(gate.matrix @ gate.matrix.conj().T, np.eye(4))
+
+
+def test_cnot_flips_the_second_qubit_when_the_first_is_set() -> None:
+    assert np.array_equal(CNOT.matrix @ np.eye(4)[2], np.eye(4)[3])
+    assert np.array_equal(CNOT.matrix @ np.eye(4)[1], np.eye(4)[1])
 
 
 @pytest.mark.parametrize("shape", [(2, 3), (3, 3), (1, 1), (4,)])

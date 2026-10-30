@@ -40,3 +40,5 @@ class Gate:
 H = Gate("h", np.array([[1, 1], [1, -1]], dtype=np.complex128) / np.sqrt(2))
 T = Gate("t", np.diag([1, np.exp(1j * np.pi / 4)]).astype(np.complex128))
 X = Gate("x", np.array([[0, 1], [1, 0]], dtype=np.complex128))
+CNOT = Gate("cnot", np.array(np.eye(4)[[0, 1, 3, 2]], dtype=np.complex128))
+CZ = Gate("cz", np.diag([1, 1, 1, -1]).astype(np.complex128))

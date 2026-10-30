@@ -13,9 +13,9 @@ class Shard:
 
     The ranks number a power of two, and rank ``r`` holds the amplitudes whose
     index has ``r`` in its top bits. Those top qubits are global, the rest local.
-    A gate on local qubits is a local operation. A gate on a global qubit first
-    swaps slices with the rank that differs in that bit, so both hold every
-    pair of amplitudes the gate mixes.
+    A gate on local qubits is a local operation. A gate on global qubits first
+    collects the slices of every rank that differs in those bits, so each holds
+    every set of amplitudes the gate mixes, and keeps its own slice of the result.
     """
 
     def __init__(self, qubits: int, exchange: Exchange, amplitudes: Amplitudes) -> None:
@@ -69,23 +69,39 @@ class Shard:
         if any(not 0 <= q < self.qubits for q in on):
             msg = f"qubits run from 0 to {self.qubits - 1}, not {on}"
             raise ValueError(msg)
-        if sum(q >= self.local_qubits for q in on) > 1:
-            msg = f"a gate may touch one global qubit, not {on} with {self.local_qubits} local"
-            raise ValueError(msg)
 
     def _collect(self, far: list[int]) -> Amplitudes:
-        """Stack this slice with the partner's when ``far`` names a global qubit."""
+        """Stack this slice with those of every rank differing in the global qubits ``far``.
+
+        Slot ``i`` holds the slice of the rank whose bits for ``far`` spell ``i``.
+        Step ``s`` swaps with the rank at slot ``i xor s``, so every step pairs
+        each rank of the group with exactly one other and none waits on a third.
+        """
         if not far:
             return self._amplitudes[np.newaxis]
-        bit = far[0] - self.local_qubits
-        group = np.empty((2, len(self._amplitudes)), dtype=np.complex128)
-        group[self._slot(far)] = self._amplitudes
-        group[1 - self._slot(far)] = self._exchange.swap(self._amplitudes, self.rank ^ (1 << bit))
+        slot = self._slot(far)
+        group = np.empty((1 << len(far), len(self._amplitudes)), dtype=np.complex128)
+        group[slot] = self._amplitudes
+        for step in range(1, len(group)):
+            peer = self._rank_at(far, slot ^ step)
+            group[slot ^ step] = self._exchange.swap(self._amplitudes, peer)
         return group
 
     def _slot(self, far: list[int]) -> int:
         """Where this rank's slice sits in the stack ``_collect`` builds for ``far``."""
-        return (self.rank >> (far[0] - self.local_qubits)) & 1 if far else 0
+        slot = 0
+        for qubit in far:
+            slot = (slot << 1) | ((self.rank >> (qubit - self.local_qubits)) & 1)
+        return slot
+
+    def _rank_at(self, far: list[int], slot: int) -> int:
+        """The rank in this one's group whose bits for ``far`` spell ``slot``."""
+        rank = self.rank
+        for position, qubit in enumerate(far):
+            bit = qubit - self.local_qubits
+            value = (slot >> (len(far) - 1 - position)) & 1
+            rank = (rank & ~(1 << bit)) | (value << bit)
+        return rank
 
     def _axis(self, qubit: int, far: list[int]) -> int:
         """The axis of ``qubit`` once the stack is reshaped to one axis per qubit."""
