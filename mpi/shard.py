@@ -9,6 +9,7 @@ import numpy as np
 from mpi.account import Account
 from mpi.exchange import Amplitudes, Exchange
 from mpi.gates import Gate
+from mpi.kernel import KERNEL
 
 
 class Shard:
@@ -69,12 +70,9 @@ class Shard:
         started, exchanged = perf_counter(), self.account.exchange_seconds
         far = sorted((q for q in on if q >= self.local_qubits), reverse=True)
         group = self._collect(far)
-        tensor = group.reshape((2,) * (len(far) + self.local_qubits))
-        axes = [self._axis(q, far) for q in on]
-        operator = gate.matrix.reshape((2,) * (2 * gate.arity))
-        mixed = np.tensordot(operator, tensor, axes=(list(range(gate.arity, 2 * gate.arity)), axes))
-        mixed = np.moveaxis(mixed, list(range(gate.arity)), axes)
-        self._amplitudes = mixed.reshape(len(group), -1)[self._slot(far)].copy()
+        KERNEL.mix(group, gate.matrix, [self._bit(q, far) for q in on])
+        if far:
+            self._amplitudes = group[self._slot(far)].copy()
         swapped = self.account.exchange_seconds - exchanged
         self.account.gate(far=bool(far), compute_seconds=perf_counter() - started - swapped)
 
@@ -121,11 +119,11 @@ class Shard:
             rank = (rank & ~(1 << bit)) | (value << bit)
         return rank
 
-    def _axis(self, qubit: int, far: list[int]) -> int:
-        """The axis of ``qubit`` once the stack is reshaped to one axis per qubit."""
+    def _bit(self, qubit: int, far: list[int]) -> int:
+        """The index bit of ``qubit`` in the stack ``_collect`` builds for ``far``."""
         if qubit in far:
-            return far.index(qubit)
-        return len(far) + self.local_qubits - 1 - qubit
+            return self.local_qubits + len(far) - 1 - far.index(qubit)
+        return qubit
 
 
 def _local_qubits(qubits: int, ranks: int) -> int:
