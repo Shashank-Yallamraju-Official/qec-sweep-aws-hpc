@@ -6,6 +6,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import matplotlib as mpl
 import pyarrow as pa
@@ -13,6 +14,11 @@ import pyarrow.parquet as pq
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # the backend must be chosen before this import
+
+
+def drawable(rows: Sequence[dict[str, Any]], distance: int) -> list[dict[str, Any]]:
+    """The rows of one distance that have a point on a log axis: those with at least one error."""
+    return [r for r in rows if r["distance"] == distance and r["errors"] > 0]
 
 
 def plot(table: pa.Table, out: Path) -> tuple[int, int]:
@@ -32,7 +38,7 @@ def plot(table: pa.Table, out: Path) -> tuple[int, int]:
     distances = sorted({r["distance"] for r in rows})
     fig, ax = plt.subplots(figsize=(7, 5))
     for distance in distances:
-        series = sorted((r for r in rows if r["distance"] == distance), key=lambda r: r["noise"])
+        series = sorted(drawable(rows, distance), key=lambda r: r["noise"])
         rates = [r["logical_error_rate"] for r in series]
         below = [r["logical_error_rate"] - r["ci_low"] for r in series]
         above = [r["ci_high"] - r["logical_error_rate"] for r in series]
