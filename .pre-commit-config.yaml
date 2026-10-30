@@ -18,6 +18,9 @@ repos:
     rev: v0.11.0.1-1
     hooks:
       - id: shellcheck
+        # Slurm scripts end in .sbatch, which identify does not know as shell.
+        types: [text]
+        files: \.(sh|sbatch)$
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
     rev: v1.7.12.25
     hooks:
