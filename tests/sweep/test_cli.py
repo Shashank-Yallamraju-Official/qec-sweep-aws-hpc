@@ -22,6 +22,16 @@ def test_main_runs_a_grid_cell_by_index(tmp_path: Path) -> None:
     assert (tmp_path / "d3_p0.001_s100000.parquet").exists()
 
 
+def test_main_rejects_an_index_beside_an_explicit_cell(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert (
+        main(["--index", "7", "--d", "9", "--p", "0.01", "--shots", "10", "--out", str(tmp_path)])
+        == 2
+    )
+    assert "by itself" in capsys.readouterr().err
+
+
 def test_main_rejects_an_index_past_the_grid(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
