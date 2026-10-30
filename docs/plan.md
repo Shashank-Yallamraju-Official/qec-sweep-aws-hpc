@@ -97,24 +97,25 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 47. `feat(cluster): add an efa-enabled hpc6a queue`
 48. `feat(jobs): submit the state-vector run across ranks`
 49. `perf(mpi): move the gate kernel to c++`
-50. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
+50. `feat(mpi): plot strong scaling from the run records`
+51. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
 
 ### Stage 8, cluster as versioned artifact
 
-51. `ci(cluster): validate the cluster config on pull request`
-52. `ci(cluster): run the smoke job on pull request`
-53. `ci(cluster): update the running cluster on merge to main`
-54. `ci(infra): plan terraform on pull request, apply on main`
-55. `docs(metrics): record changes shipped without ssh`
+52. `ci(cluster): validate the cluster config on pull request`
+53. `ci(cluster): run the smoke job on pull request`
+54. `ci(cluster): update the running cluster on merge to main`
+55. `ci(infra): plan terraform on pull request, apply on main`
+56. `docs(metrics): record changes shipped without ssh`
 
 ### Stage 9, graphical node
 
-56. `feat(cluster): add a dcv-enabled login node`
-57. `feat(cluster): install paraview on the login node`
+57. `feat(cluster): add a dcv-enabled login node`
+58. `feat(cluster): install paraview on the login node`
 
 ### Stage 10, write-up
 
-58. `docs: add readme with architecture, metrics and what broke`
+59. `docs: add readme with architecture, metrics and what broke`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
