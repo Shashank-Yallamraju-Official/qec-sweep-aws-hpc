@@ -304,14 +304,23 @@ data "aws_iam_policy_document" "terraform" {
     ]
   }
   statement {
-    sid     = "Reaper"
-    actions = ["lambda:*", "logs:*", "events:*"]
+    sid     = "ReaperRunnersAndDocuments"
+    actions = ["lambda:*", "logs:*", "events:*", "codebuild:*", "ssm:*Document*", "ssm:*TagsToResource", "ssm:ListTagsForResource"]
     resources = [
       "arn:aws:lambda:${var.region}:${local.account}:function:qec-sweep-*",
       "arn:aws:logs:${var.region}:${local.account}:log-group:/aws/lambda/qec-sweep-*",
       "arn:aws:logs:${var.region}:${local.account}:log-group:/aws/lambda/qec-sweep-*:*",
+      "arn:aws:logs:${var.region}:${local.account}:log-group:/aws/codebuild/qec-sweep-*",
+      "arn:aws:logs:${var.region}:${local.account}:log-group:/aws/codebuild/qec-sweep-*:*",
       "arn:aws:events:${var.region}:${local.account}:rule/qec-sweep-*",
+      "arn:aws:codebuild:${var.region}:${local.account}:project/qec-sweep-*",
+      "arn:aws:ssm:${var.region}:${local.account}:document/qec-sweep-*",
     ]
+  }
+  statement {
+    sid       = "Connection"
+    actions   = ["codeconnections:PassConnection", "codeconnections:GetConnection", "codeconnections:ListTagsForResource"]
+    resources = [var.github_connection_arn]
   }
   statement {
     sid       = "AlertsAndBudget"
