@@ -1,67 +1,125 @@
-# GitHub Actions reaches this project through two roles and no long-lived key.
-# A pull request assumes `plan`, which can read everything and change nothing,
-# enough for `terraform plan` and a ParallelCluster dry run. A push to main
-# assumes `deploy`, which holds what ParallelCluster documents for its own user
-# plus what Terraform needs for the resources in this directory, by name.
+# GitHub Actions reaches this project without a long-lived key. The managed
+# organisation policy denies every iam:*Provider* action, so GitHub's OIDC
+# federation is not available here; instead CodeBuild hosts the Actions runners
+# and each runner carries a service role. A pull request's jobs run on `plan`,
+# which can read everything and change nothing, enough for `terraform plan` and
+# a ParallelCluster dry run. Jobs on main run on `deploy`, which holds what
+# ParallelCluster documents for its own user plus what Terraform needs for the
+# resources in this directory, by name.
 
 locals {
   account         = data.aws_caller_identity.current.account_id
-  github_oidc     = "token.actions.githubusercontent.com"
+  repository_url  = "https://github.com/${var.github_repository}.git"
   parallelcluster = "arn:aws:iam::${local.account}:role/parallelcluster/*"
+  runners         = toset(["plan", "deploy"])
 }
 
-resource "aws_iam_openid_connect_provider" "github" {
-  url            = "https://${local.github_oidc}"
-  client_id_list = ["sts.amazonaws.com"]
-  # GitHub's root certificate thumbprints; AWS now checks the chain itself, but
-  # the argument is required.
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
-  ]
+# Authorised once, by hand, in the console: the GitHub app installation is the
+# one step that needs a browser.
+resource "aws_codeconnections_connection" "github" {
+  name          = "qec-sweep-github"
+  provider_type = "GitHub"
 }
 
-data "aws_iam_policy_document" "github_assume" {
-  for_each = {
-    plan   = ["repo:${var.github_repository}:pull_request", "repo:${var.github_repository}:ref:refs/heads/main"]
-    deploy = ["repo:${var.github_repository}:ref:refs/heads/main"]
-  }
+data "aws_iam_policy_document" "codebuild_assume" {
   statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
+    actions = ["sts:AssumeRole"]
     principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      type        = "Service"
+      identifiers = ["codebuild.amazonaws.com"]
     }
     condition {
       test     = "StringEquals"
-      variable = "${local.github_oidc}:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-    condition {
-      test     = "StringLike"
-      variable = "${local.github_oidc}:sub"
-      values   = each.value
+      variable = "aws:SourceAccount"
+      values   = [local.account]
     }
   }
 }
 
-resource "aws_iam_role" "plan" {
-  name               = "qec-sweep-plan"
-  assume_role_policy = data.aws_iam_policy_document.github_assume["plan"].json
+resource "aws_iam_role" "runner" {
+  for_each           = local.runners
+  name               = "qec-sweep-${each.key}"
+  assume_role_policy = data.aws_iam_policy_document.codebuild_assume.json
+}
+
+# What any runner needs of its own: its build log and the connection it clones through.
+data "aws_iam_policy_document" "runner" {
+  statement {
+    sid       = "BuildLog"
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["arn:aws:logs:${var.region}:${local.account}:log-group:/aws/codebuild/qec-sweep-*"]
+  }
+  statement {
+    sid       = "Clone"
+    actions   = ["codeconnections:GetConnectionToken", "codeconnections:GetConnection", "codeconnections:UseConnection"]
+    resources = [aws_codeconnections_connection.github.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "runner" {
+  for_each = local.runners
+  role     = aws_iam_role.runner[each.key].name
+  name     = "runner"
+  policy   = data.aws_iam_policy_document.runner.json
 }
 
 resource "aws_iam_role_policy_attachment" "plan_read" {
-  role       = aws_iam_role.plan.name
+  role       = aws_iam_role.runner["plan"].name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
-resource "aws_iam_role" "deploy" {
-  name               = "qec-sweep-deploy"
-  assume_role_policy = data.aws_iam_policy_document.github_assume["deploy"].json
+resource "aws_codebuild_project" "runner" {
+  for_each     = local.runners
+  name         = "qec-sweep-${each.key}"
+  description  = "GitHub Actions runner for the qec-sweep ${each.key} jobs"
+  service_role = aws_iam_role.runner[each.key].arn
+  source {
+    type     = "GITHUB"
+    location = local.repository_url
+    auth {
+      type     = "CODECONNECTIONS"
+      resource = aws_codeconnections_connection.github.arn
+    }
+  }
+  artifacts {
+    type = "NO_ARTIFACTS"
+  }
+  environment {
+    type         = "LINUX_CONTAINER"
+    compute_type = "BUILD_GENERAL1_SMALL"
+    image        = "aws/codebuild/amazonlinux-x86_64-standard:5.0"
+  }
+  logs_config {
+    cloudwatch_logs {
+      group_name = "/aws/codebuild/qec-sweep-${each.key}"
+    }
+  }
 }
 
-# What ParallelCluster documents as its base user policy, less the Batch, FSx
-# and Secrets Manager statements this cluster has no use for.
+# A queued Actions job whose runs-on label names a project lands on it. A job
+# queued event cannot be filtered by branch, so the deploy project insists on
+# the workflow named deploy, which only runs on main, and on the repository
+# owner as the actor: a pull request that edits a workflow to ask for the
+# deploy runner gets nothing.
+resource "aws_codebuild_webhook" "runner" {
+  for_each     = local.runners
+  project_name = aws_codebuild_project.runner[each.key].name
+  build_type   = "BUILD"
+  filter_group {
+    filter {
+      type    = "EVENT"
+      pattern = "WORKFLOW_JOB_QUEUED"
+    }
+    dynamic "filter" {
+      for_each = each.key == "deploy" ? { WORKFLOW_NAME = "^deploy$", ACTOR_ACCOUNT_ID = "^${var.github_actor_id}$" } : {}
+      content {
+        type    = filter.key
+        pattern = filter.value
+      }
+    }
+  }
+}
+
 data "aws_iam_policy_document" "pcluster" {
   statement {
     sid       = "Ec2"
@@ -241,7 +299,6 @@ data "aws_iam_policy_document" "terraform" {
       "arn:aws:iam::${local.account}:role/qec-sweep-*",
       "arn:aws:iam::${local.account}:policy/qec-sweep-*",
       "arn:aws:iam::${local.account}:instance-profile/qec-sweep-*",
-      "arn:aws:iam::${local.account}:oidc-provider/${local.github_oidc}",
       "arn:aws:iam::${local.account}:role/aws-service-role/spot.amazonaws.com/*",
     ]
   }
@@ -284,6 +341,6 @@ resource "aws_iam_policy" "deploy" {
 
 resource "aws_iam_role_policy_attachment" "deploy" {
   for_each   = aws_iam_policy.deploy
-  role       = aws_iam_role.deploy.name
+  role       = aws_iam_role.runner["deploy"].name
   policy_arn = each.value.arn
 }

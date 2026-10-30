@@ -14,12 +14,12 @@ output "mpi_subnet_id" {
   value = aws_subnet.mpi.id
 }
 
-output "plan_role_arn" {
-  value       = aws_iam_role.plan.arn
-  description = "assumed by pull-request workflows"
+output "plan_runner" {
+  value       = aws_codebuild_project.runner["plan"].name
+  description = "runs-on: codebuild-<this>-$${{ github.run_id }}-$${{ github.run_attempt }} for pull requests"
 }
 
-output "deploy_role_arn" {
-  value       = aws_iam_role.deploy.arn
-  description = "assumed by workflows on main"
+output "deploy_runner" {
+  value       = aws_codebuild_project.runner["deploy"].name
+  description = "the same label form, for jobs on main"
 }
