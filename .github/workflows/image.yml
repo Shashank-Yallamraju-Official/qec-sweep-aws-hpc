@@ -3,9 +3,9 @@ name: image
 on:
   push:
     branches: [main]
-    paths: [image/**, sweep/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
+    paths: [image/**, sweep/**, mpi/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
   pull_request:
-    paths: [image/**, sweep/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
+    paths: [image/**, sweep/**, mpi/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
 
 permissions:
   contents: read
@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   image:
+    strategy:
+      matrix:
+        image: [sweep, mpi]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,15 +27,17 @@ jobs:
       - uses: eWaterCycle/setup-apptainer@v2
         with:
           apptainer-version: 1.4.1
-      - run: sudo apptainer build sweep.sif image/sweep.def && sudo chown "$USER" sweep.sif
-      - run: SWEEP_IMAGE="$PWD/sweep.sif" uv run pytest tests/image
+      - run: sudo apptainer build image.sif image/${{ matrix.image }}.def && sudo chown "$USER" image.sif
+      - env:
+          IMAGE: ${{ matrix.image }}
+        run: env "$(echo "$IMAGE" | tr '[:lower:]' '[:upper:]')_IMAGE=$PWD/image.sif" uv run pytest tests/image
       - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/sweep"
+          name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.image }}"
           echo "$TOKEN" | apptainer registry login -u '${{ github.actor }}' --password-stdin oras://ghcr.io
-          apptainer push sweep.sif "oras://$name:${{ github.event.pull_request.head.sha || github.sha }}"
+          apptainer push image.sif "oras://$name:${{ github.event.pull_request.head.sha || github.sha }}"
           if [ '${{ github.ref }}' = refs/heads/main ]; then
-            apptainer push sweep.sif "oras://$name:latest"
+            apptainer push image.sif "oras://$name:latest"
           fi
