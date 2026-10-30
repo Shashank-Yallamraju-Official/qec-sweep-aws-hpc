@@ -1,6 +1,7 @@
 """Checks a commit message against the repository's format.
 
-Used as the commit-msg git hook (path argument) and in CI (--range).
+Used as the commit-msg git hook (path argument), in CI (--range), and on the plan
+(--plan), so a subject that would fail at commit time fails when it is planned.
 """
 
 from __future__ import annotations
@@ -14,7 +15,23 @@ from pathlib import Path
 
 TYPES = frozenset({"feat", "fix", "refactor", "perf", "test", "build", "ci", "docs", "chore"})
 SCOPES = frozenset(
-    {"sweep", "mpi", "jobs", "cluster", "image", "infra", "tools", "metrics", "hooks", "ci", "docs"}
+    {
+        "sweep",
+        "mpi",
+        "decoder",
+        "results",
+        "models",
+        "web",
+        "jobs",
+        "cluster",
+        "image",
+        "infra",
+        "tools",
+        "metrics",
+        "hooks",
+        "ci",
+        "docs",
+    }
 )
 SUBJECT_LIMIT = 60
 BODY_WIDTH = 72
@@ -22,6 +39,7 @@ NON_IMPERATIVE = re.compile(r"^(add|fix|updat|remov|chang|mov)(ed|es|ing|s)$")
 PLACEHOLDERS = frozenset({"wip", "update", "misc", "fixes", "changes", "cleanup", "stuff"})
 HEADER = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[a-z]+)\))?: (?P<subject>\S.*)$")
 TRAILER = re.compile(r"^([A-Za-z]+-[A-Za-z-]+|Fixes|Closes|Refs|Resolves): \S")
+PLANNED = re.compile(r"`([a-z]+(?:\([a-z]+\))?: [^`]+)`")
 
 
 def check(message: str) -> list[str]:
@@ -101,6 +119,11 @@ def messages_in_range(revision_range: str, repo: Path) -> list[str]:
     return [m.strip() for m in output.split("\0") if m.strip()]
 
 
+def subjects_in_plan(plan: Path) -> list[str]:
+    """Every backticked commit header in the plan, in order."""
+    return PLANNED.findall(plan.read_text())
+
+
 def _sorted(values: frozenset[str]) -> str:
     return ", ".join(sorted(values))
 
@@ -112,7 +135,7 @@ def _report(label: str, problems: Sequence[str]) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Check a message file, a revision range, or standard input.
+    """Check a message file, a revision range, the plan, or standard input.
 
     Args:
         argv: Arguments without the program name; ``None`` reads ``sys.argv``.
@@ -123,10 +146,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="check commit messages against the house format")
     parser.add_argument("path", nargs="?", help="file holding one commit message")
     parser.add_argument("--range", dest="revision_range", help="git revision range to check")
+    parser.add_argument("--plan", type=Path, help="plan whose backticked subjects to check")
     parser.add_argument("--repo", type=Path, default=Path(), help="repository to read from")
     args = parser.parse_args(argv)
     if args.revision_range:
         messages = messages_in_range(args.revision_range, args.repo)
+    elif args.plan:
+        messages = subjects_in_plan(args.plan)
     elif args.path:
         messages = [Path(args.path).read_text()]
     else:

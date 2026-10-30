@@ -48,6 +48,12 @@ repos:
         entry: uv run python tools/check_commit.py
         language: system
         stages: [commit-msg]
+      - id: plan-subjects
+        name: plan subjects
+        entry: uv run python tools/check_commit.py --plan docs/plan.md
+        language: system
+        files: ^docs/plan\.md$
+        pass_filenames: false
       - id: terraform-validate
         name: terraform validate
         # Validation gets its own data directory so it never touches the S3 backend.
