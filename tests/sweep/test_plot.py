@@ -6,7 +6,7 @@ import pytest
 from sweep.cell import Cell
 from sweep.decode import CellResult
 from sweep.parquet import write
-from sweep.plot import main, plot
+from sweep.plot import drawable, main, plot
 from sweep.reduce import reduce_cells
 
 
@@ -20,6 +20,15 @@ def table_path(tmp_path: Path) -> Path:
     path = tmp_path / "sweep.parquet"
     pq.write_table(reduce_cells(cells), path)
     return path
+
+
+def test_drawable_leaves_out_cells_with_no_errors() -> None:
+    rows = [
+        {"distance": 11, "noise": 0.001, "errors": 0},
+        {"distance": 11, "noise": 0.01, "errors": 40},
+        {"distance": 3, "noise": 0.001, "errors": 70},
+    ]
+    assert drawable(rows, 11) == [rows[1]]
 
 
 def test_plot_writes_a_png(table_path: Path, tmp_path: Path) -> None:
