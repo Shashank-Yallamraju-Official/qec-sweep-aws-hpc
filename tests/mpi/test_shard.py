@@ -1,10 +1,24 @@
+import ctypes
+import shutil
+from typing import cast
+
 import numpy as np
 import pytest
 
 from mpi.exchange import Alone, Amplitudes, Exchange
 from mpi.gates import CNOT, CZ, Gate, H, T, X
+from mpi.kernel import Kernel, build
 from mpi.shard import Shard
 from tests.mpi.lockstep import Lockstep, run
+
+
+@pytest.fixture(params=["numpy", "native"])
+def kernel(request: pytest.FixtureRequest) -> Kernel:
+    if request.param == "numpy":
+        return Kernel(None)
+    if shutil.which("c++") is None:
+        pytest.skip("needs a C++ compiler")
+    return Kernel(ctypes.CDLL(str(build())))
 
 
 def dense(gate: Gate, on: tuple[int, ...], qubits: int) -> Amplitudes:
@@ -52,25 +66,27 @@ def test_ranks_cannot_outnumber_the_amplitudes() -> None:
 
 
 def test_a_slice_must_be_the_rank_s_share() -> None:
-    with pytest.raises(ValueError, match="2\\*\\*2 amplitudes"):
+    with pytest.raises(ValueError, match="2\\*\\*2 complex128 amplitudes"):
         Shard(4, Lockstep(4).rank(1), np.zeros(8, dtype=np.complex128))
+    with pytest.raises(ValueError, match="complex128"):
+        Shard(4, Lockstep(4).rank(1), cast("Amplitudes", np.zeros(4)))
 
 
 @pytest.mark.parametrize("gate", [H, T, X])
 @pytest.mark.parametrize("qubit", [0, 2])
-def test_a_local_gate_matches_the_dense_matrix(gate: Gate, qubit: int) -> None:
+def test_a_local_gate_matches_the_dense_matrix(kernel: Kernel, gate: Gate, qubit: int) -> None:
     state = random_state(3)
-    shard = Shard(3, Alone(), state.copy())
+    shard = Shard(3, Alone(), state.copy(), kernel)
     shard.apply(gate, (qubit,))
     assert np.allclose(shard.amplitudes, dense(gate, (qubit,), 3) @ state)
 
 
 @pytest.mark.parametrize("qubit", [3, 4])
-def test_a_gate_on_a_global_qubit_matches_the_dense_matrix(qubit: int) -> None:
+def test_a_gate_on_a_global_qubit_matches_the_dense_matrix(kernel: Kernel, qubit: int) -> None:
     state = random_state(5)
 
     def body(exchange: Exchange) -> Amplitudes:
-        shard = Shard(5, exchange, slice_of(state, exchange))
+        shard = Shard(5, exchange, slice_of(state, exchange), kernel)
         shard.apply(H, (qubit,))
         return shard.amplitudes
 
@@ -109,12 +125,12 @@ def test_qubits_must_fit_the_gate_and_the_state(
 @pytest.mark.parametrize("gate", [CNOT, CZ])
 @pytest.mark.parametrize("on", [(0, 1), (1, 3), (3, 1), (2, 3), (3, 2)])
 def test_a_two_qubit_gate_matches_the_dense_matrix_wherever_it_lands(
-    gate: Gate, on: tuple[int, int]
+    kernel: Kernel, gate: Gate, on: tuple[int, int]
 ) -> None:
     state = random_state(4)
 
     def body(exchange: Exchange) -> Amplitudes:
-        shard = Shard(4, exchange, slice_of(state, exchange))
+        shard = Shard(4, exchange, slice_of(state, exchange), kernel)
         shard.apply(gate, on)
         return shard.amplitudes
 
@@ -137,12 +153,12 @@ def test_the_norm_is_of_the_whole_state_and_the_account_knows_which_gates_swappe
         assert account["exchange_seconds"] > 0
 
 
-def test_two_global_qubits_collect_a_group_of_four_among_eight_ranks() -> None:
+def test_two_global_qubits_collect_a_group_of_four_among_eight_ranks(kernel: Kernel) -> None:
     state = random_state(5)
     expected = dense(CZ, (3, 2), 5) @ dense(CNOT, (4, 2), 5) @ state
 
     def body(exchange: Exchange) -> Amplitudes:
-        shard = Shard(5, exchange, slice_of(state, exchange))
+        shard = Shard(5, exchange, slice_of(state, exchange), kernel)
         shard.apply(CNOT, (4, 2))
         shard.apply(CZ, (3, 2))
         return shard.amplitudes

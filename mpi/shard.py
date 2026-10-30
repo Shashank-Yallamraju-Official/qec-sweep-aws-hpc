@@ -9,7 +9,7 @@ import numpy as np
 from mpi.account import Account
 from mpi.exchange import Amplitudes, Exchange
 from mpi.gates import Gate
-from mpi.kernel import KERNEL
+from mpi.kernel import KERNEL, Kernel
 
 
 class Shard:
@@ -25,24 +25,27 @@ class Shard:
         account: Gates applied and time spent, kept as gates are applied.
     """
 
-    def __init__(self, qubits: int, exchange: Exchange, amplitudes: Amplitudes) -> None:
+    def __init__(
+        self, qubits: int, exchange: Exchange, amplitudes: Amplitudes, kernel: Kernel = KERNEL
+    ) -> None:
         """Wrap this rank's slice of a state; ``zero`` makes the usual starting state."""
         self.qubits = qubits
         self.local_qubits = _local_qubits(qubits, exchange.size)
-        if amplitudes.shape != (1 << self.local_qubits,):
-            msg = f"a rank holds 2**{self.local_qubits} amplitudes here, not {len(amplitudes)}"
+        if amplitudes.shape != (1 << self.local_qubits,) or amplitudes.dtype != np.complex128:
+            msg = f"a slice is 2**{self.local_qubits} complex128 amplitudes, not {amplitudes.shape}"
             raise ValueError(msg)
         self.account = Account()
         self._exchange = exchange
+        self._kernel = kernel
         self._amplitudes = amplitudes
 
     @classmethod
-    def zero(cls, qubits: int, exchange: Exchange) -> Shard:
+    def zero(cls, qubits: int, exchange: Exchange, kernel: Kernel = KERNEL) -> Shard:
         """The state with every qubit zero: one amplitude on rank 0, none elsewhere."""
         amplitudes = np.zeros(1 << _local_qubits(qubits, exchange.size), dtype=np.complex128)
         if exchange.rank == 0:
             amplitudes[0] = 1
-        return cls(qubits, exchange, amplitudes)
+        return cls(qubits, exchange, amplitudes, kernel)
 
     @property
     def rank(self) -> int:
@@ -56,9 +59,8 @@ class Shard:
 
     def norm(self) -> float:
         """The norm of the whole state, on every rank; one, unless something went wrong."""
-        return float(
-            np.sqrt(self._exchange.total(float(np.vdot(self._amplitudes, self._amplitudes).real)))
-        )
+        own = float(np.vdot(self._amplitudes, self._amplitudes).real)
+        return float(np.sqrt(self._exchange.total(own)))
 
     def apply(self, gate: Gate, on: tuple[int, ...]) -> None:
         """Apply ``gate`` to the qubits ``on``, the first listed most significant in its matrix.
@@ -70,9 +72,13 @@ class Shard:
         started, exchanged = perf_counter(), self.account.exchange_seconds
         far = sorted((q for q in on if q >= self.local_qubits), reverse=True)
         group = self._collect(far)
-        KERNEL.mix(group, gate.matrix, [self._bit(q, far) for q in on])
+        bits = [self._bit(q, far) for q in on]
         if far:
-            self._amplitudes = group[self._slot(far)].copy()
+            slot = self._slot(far)
+            self._kernel.mix(group, gate.matrix, bits, keep=slot)
+            self._amplitudes = group[slot].copy()
+        else:
+            self._kernel.mix(group, gate.matrix, bits)
         swapped = self.account.exchange_seconds - exchanged
         self.account.gate(far=bool(far), compute_seconds=perf_counter() - started - swapped)
 
@@ -99,7 +105,7 @@ class Shard:
         for step in range(1, len(group)):
             peer = self._rank_at(far, slot ^ step)
             started = perf_counter()
-            group[slot ^ step] = self._exchange.swap(self._amplitudes, peer)
+            self._exchange.swap(self._amplitudes, peer, into=group[slot ^ step])
             self.account.exchange_seconds += perf_counter() - started
         return group
 

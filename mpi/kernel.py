@@ -17,7 +17,7 @@ LIBRARY = Path(__file__).with_name("libkernel.so")
 
 def build(compiler: str = "c++") -> Path:
     """Compile the kernel beside this module and return the library's path."""
-    command = [compiler, "-O3", "-shared", "-fPIC", "-o", str(LIBRARY), str(SOURCE)]
+    command = [compiler, "-std=c++17", "-O3", "-shared", "-fPIC", "-o", str(LIBRARY), str(SOURCE)]
     subprocess.run(command, check=True)  # noqa: S603
     return LIBRARY
 
@@ -36,6 +36,8 @@ class Kernel:
                 ctypes.c_void_p,
                 ctypes.c_int,
                 ctypes.POINTER(ctypes.c_int),
+                ctypes.c_uint64,
+                ctypes.c_uint64,
             ]
 
     @classmethod
@@ -48,32 +50,50 @@ class Kernel:
         """``native`` or ``numpy``, for the run's record."""
         return "numpy" if self._native is None else "native"
 
-    def mix(self, group: Amplitudes, matrix: Matrix, bits: list[int]) -> None:
+    def mix(
+        self, group: Amplitudes, matrix: Matrix, bits: list[int], keep: int | None = None
+    ) -> None:
         """Apply ``matrix`` to ``group`` in place on index bits ``bits``, first most significant.
 
         ``group`` is a contiguous stack of slices; an index is the slot's bits
-        above the slice's bits, so ``bits`` can name either.
+        above the slice's bits, so ``bits`` can name either. With ``keep``, only
+        that slot's row of the result is written.
         """
-        if self._native is None:
-            _mix_numpy(group, matrix, bits)
-            return
-        if not group.flags.c_contiguous:
-            msg = "the stack must be one contiguous buffer"
+        if group.dtype != np.complex128 or not group.flags.c_contiguous:
+            msg = f"the stack must be one contiguous complex128 buffer, not {group.dtype}"
             raise ValueError(msg)
+        if self._native is None:
+            _mix_numpy(group, matrix, bits, keep)
+            return
+        slice_bits = group.shape[1].bit_length() - 1
+        keep_mask = 0 if keep is None else (len(group) - 1) << slice_bits
+        keep_value = 0 if keep is None else keep << slice_bits
         flat = group.reshape(-1)
         operator = np.ascontiguousarray(matrix, dtype=np.complex128)
         positions = (ctypes.c_int * len(bits))(*bits)
-        self._native.mix(flat.ctypes.data, flat.size, operator.ctypes.data, len(bits), positions)
+        self._native.mix(
+            flat.ctypes.data,
+            flat.size,
+            operator.ctypes.data,
+            len(bits),
+            positions,
+            keep_mask,
+            keep_value,
+        )
 
 
-def _mix_numpy(group: Amplitudes, matrix: Matrix, bits: list[int]) -> None:
+def _mix_numpy(group: Amplitudes, matrix: Matrix, bits: list[int], keep: int | None) -> None:
     qubits = group.size.bit_length() - 1
     tensor = group.reshape((2,) * qubits)
     axes = [qubits - 1 - bit for bit in bits]
     arity = len(bits)
     operator = matrix.reshape((2,) * (2 * arity))
     mixed = np.tensordot(operator, tensor, axes=(list(range(arity, 2 * arity)), axes))
-    group[...] = np.moveaxis(mixed, list(range(arity)), axes).reshape(group.shape)
+    mixed = np.moveaxis(mixed, list(range(arity)), axes).reshape(group.shape)
+    if keep is None:
+        group[...] = mixed
+    else:
+        group[keep] = mixed[keep]
 
 
 KERNEL = Kernel.load()
