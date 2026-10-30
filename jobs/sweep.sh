@@ -41,10 +41,10 @@ sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
 # closes it cannot start before the array ends.
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg nodes "$nodes" --arg image "$image_uri" \
   --arg digest "$digest" --arg commit "$commit" --arg config_hash "$config_hash" --arg submitted "$submitted" \
-  --argjson array "$array" --argjson sync "$sync" \
+  --arg array "$array" --arg sync "$sync" \
   '{run: $run, queue: $queue, nodes: ($nodes | if . == "" then null else tonumber end),
     instance_type: "c7a.large", image: $image, image_digest: ($digest | if . == "" then null else . end),
     commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
-    jobs: {array: $array, sync: $sync}, submitted: $submitted}' > "$run_dir/run.json"
+    jobs: {array: ($array | tonumber? // .), sync: ($sync | tonumber? // .)}, submitted: $submitted}' > "$run_dir/run.json"
 echo "$run_dir array=$array sync=$sync"
