@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from mpi.exchange import Alone, Amplitudes, Exchange
-from mpi.gates import Gate, H, T, X
+from mpi.gates import CNOT, CZ, Gate, H, T, X
 from mpi.shard import Shard
 from tests.mpi.lockstep import Lockstep, run
 
@@ -106,7 +106,29 @@ def test_qubits_must_fit_the_gate_and_the_state(
         Shard.zero(4, Alone()).apply(gate, on)
 
 
-def test_two_global_qubits_in_one_gate_is_not_yet_supported() -> None:
-    swap = Gate("swap", np.eye(4, dtype=np.complex128))
-    with pytest.raises(ValueError, match="one global qubit"):
-        Shard.zero(4, Lockstep(4).rank(0)).apply(swap, (2, 3))
+@pytest.mark.parametrize("gate", [CNOT, CZ])
+@pytest.mark.parametrize("on", [(0, 1), (1, 3), (3, 1), (2, 3), (3, 2)])
+def test_a_two_qubit_gate_matches_the_dense_matrix_wherever_it_lands(
+    gate: Gate, on: tuple[int, int]
+) -> None:
+    state = random_state(4)
+
+    def body(exchange: Exchange) -> Amplitudes:
+        shard = Shard(4, exchange, slice_of(state, exchange))
+        shard.apply(gate, on)
+        return shard.amplitudes
+
+    assert np.allclose(np.concatenate(run(4, body)), dense(gate, on, 4) @ state)
+
+
+def test_two_global_qubits_collect_a_group_of_four_among_eight_ranks() -> None:
+    state = random_state(5)
+    expected = dense(CZ, (3, 2), 5) @ dense(CNOT, (4, 2), 5) @ state
+
+    def body(exchange: Exchange) -> Amplitudes:
+        shard = Shard(5, exchange, slice_of(state, exchange))
+        shard.apply(CNOT, (4, 2))
+        shard.apply(CZ, (3, 2))
+        return shard.amplitudes
+
+    assert np.allclose(np.concatenate(run(8, body)), expected)
