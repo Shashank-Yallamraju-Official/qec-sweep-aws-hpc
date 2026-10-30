@@ -66,7 +66,7 @@ Every choice below was made for a reason a reader of the README should be able t
 | Apptainer | Spack only | Spack is the right tool for compiled MPI stacks; it is kept in reserve for stage 7 and layered inside the image if needed |
 | EFS | FSx for Lustre | Lustre was the first choice, striping across servers under hundreds of writers, but this account's plan cannot use FSx; the sweep writes one small Parquet file per cell, which EFS serves without strain, and the parallel-I/O lesson is deferred to a cluster that can use Lustre |
 | EFS | S3 only | Fine for the sweep, wrong for MPI checkpoints, which need a shared filesystem the ranks can all reach |
-| Spot for the sweep queue | On-demand everywhere | Cells are idempotent and short, so interruption costs one cell; spot cuts the sweep's bill by roughly two-thirds |
+| Spot for the sweep queue | On-demand everywhere | Cells are idempotent and short, so interruption costs one cell; spot cuts the sweep's bill by roughly two-thirds. This account's plan denies spot launches by policy, so the spot queue stays in the config for an account that allows them and the spot cost is priced from the spot price history rather than measured |
 | On-demand for the MPI queue | Spot everywhere | One interrupted rank kills the whole MPI job |
 | Terraform for surroundings | CDK | Either works; Terraform because the ParallelCluster YAML is already declarative and the two read alike |
 | Parquet per cell | One big CSV | Independent files make tasks idempotent and retryable; a reducer concatenates at the end |
