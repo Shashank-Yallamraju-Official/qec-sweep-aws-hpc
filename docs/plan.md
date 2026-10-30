@@ -1,6 +1,6 @@
 # Plan
 
-The design is in [design.md](design.md). This file is the order of work: fourteen stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
+The design is in [design.md](design.md). This file is the order of work: fifteen stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
 
 ## Stages
 
@@ -20,6 +20,7 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 | 12 | The decoder loop: generate, train, evaluate | A learned decoder trained on the cluster decodes cells of the grid beside PyMatching, and one chained run goes from samples to a comparison plot without a hand in between | logical error rate of the learned decoder over PyMatching's at distances 3 and 5, with 95% intervals, under depolarising and under correlated circuit-level noise; below one at distance 5 under correlated noise with the intervals apart is the win; GPU-hours and dollars to train; shots and CPU-hours to generate and to evaluate |
 | 13 | Results as a versioned artifact | Every figure in the README walks back to its run record, image digest, commit and inputs through S3 keys alone; a decoder is promoted by a pull request | audit coverage: figures with a complete provenance chain over figures reported, all of them |
 | 14 | A comparison site | The site does three things, pick two runs, compare them, trace them, and each is finished: loading, empty and error states, keyboard and screen reader, dark mode, a test that drives it, a budget that fails the build. Anyone with the link does all three with no server behind the page, and the site rebuilds with fresh data on every merge | Lighthouse performance on a throttled phone profile, 100; first paint under one second; the comparison query under 100 ms in the browser; the first script under 150 kB compressed, the query engine loading after it; time from merge to a refreshed site, under ten minutes |
+| 15 | A shorter loop and a smaller bill | The same sweep goes from a commit to its first cell in S3 in half the time and the billed sweep costs a third, with each change measured against a baseline taken before any of them | loop time, commit to first cell written on the cluster, before and after; time to first node with a baked AMI, under 2 min from 4.0; weak-scaling efficiency at 16 nodes once the grid runs longest cells first, above 90% from 62%; billed cost per sweep at 16 nodes with a shorter idle tail, under $0.10 from $0.30; cells per dollar on `c7a`, `c7i` and Graviton `c8g`; CI minutes per pull request before and after |
 
 ## Commits
 
@@ -172,6 +173,21 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 97. `ci(web): publish the site with its data snapshot on merge`
 98. `docs(metrics): record the site's load, query and size`
 99. `docs: add the comparison site to the readme`
+
+### Stage 15, a shorter loop and a smaller bill
+
+100. `feat(tools): time the loop from commit to first cell`
+101. `perf(sweep): run the grid longest cells first`
+102. `perf(jobs): reuse a pulled image by its digest`
+103. `feat(cluster): bake apptainer and the image into an ami`
+104. `perf(cluster): shorten the sweep queue's idle tail`
+105. `build(image): build the sweep image for arm64 too`
+106. `feat(cluster): add a graviton queue beside the x86 one`
+107. `feat(jobs): run the grid on each type for cells per dollar`
+108. `perf(ci): cache the environment and skip unchanged images`
+109. `feat(tools): plot cost and loop time before and after`
+110. `docs(metrics): record the loop time and cost per sweep after`
+111. `docs: add the optimisation stage to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
