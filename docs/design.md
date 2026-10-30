@@ -31,7 +31,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | Component | Problem it solves | Why this choice |
 | --- | --- | --- |
 | ParallelCluster + Slurm | Nodes must appear when work is queued and vanish when idle | The AWS-native HPC scheduler; Slurm is what every HPC team already speaks |
-| Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; an HPC instance type with EFA is required for low-latency collectives. hpc6a, not hpc7a as first planned: hpc7a's two network cards cannot take a public IP, so it needs a private subnet and a NAT gateway, while hpc6a has one card and costs two fifths as much |
+| Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; an HPC instance type with EFA is required for low-latency collectives. hpc6a, not hpc7a as first planned: two fifths of the price for the same scaling question. Either needs a private subnet and a NAT gateway, since an EFA node carries a second interface and EC2 gives no public IP to an instance with two |
 | Apptainer image | A fresh node must match last week's node bit for bit | No root daemon, so it runs on shared clusters; built once in CI, pulled at job start |
 | EFS | Nodes need one shared scratch filesystem for inputs, the image and job output | Chosen over FSx for Lustre because this account's plan cannot use FSx and the sweep writes one small file per cell; the parallel-I/O lesson is a known gap, recorded in the decisions table |
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
