@@ -6,7 +6,7 @@ Oct 27, 2026 · @Shashank Yallamraju
 
 This project runs a quantum error-correction (QEC) decoder sweep on an HPC cluster built on AWS entirely as code. It exists to answer one question: can a scientist describe a computation and get a reproducible, cost-governed result back without touching infrastructure?
 
-The sweep itself is the test cargo. The deliverable is the platform around it: a Slurm cluster that provisions itself, a frozen environment, a job-array pattern for parameter sweeps, an MPI path for tightly coupled work, and a CI pipeline that treats the cluster as a versioned artifact.
+The sweep itself is the test cargo. The deliverable is the platform around it: a Slurm cluster that provisions itself, a frozen environment, a job-array pattern for parameter sweeps, an MPI path for tightly coupled work, a CI pipeline that treats the cluster as a versioned artifact, and a GPU path that runs the same tightly coupled simulation on the hardware a quantum team would use for it.
 
 Each stage adds one capability and reports one metric, so a reader can see what was added, why it was needed, and whether it worked.
 
@@ -31,7 +31,7 @@ The top lane is what changes with every commit; the bottom lane is what the comm
 | Component | Problem it solves | Why this choice |
 | --- | --- | --- |
 | ParallelCluster + Slurm | Nodes must appear when work is queued and vanish when idle | The AWS-native HPC scheduler; Slurm is what every HPC team already speaks |
-| Two queues | Sweep cells and MPI jobs want different hardware | Spot c7a is cheap for independent cells; an HPC instance type with EFA is required for low-latency collectives. hpc6a, not hpc7a as first planned: two fifths of the price for the same scaling question. Either needs a private subnet and a NAT gateway, since an EFA node carries a second interface and EC2 gives no public IP to an instance with two |
+| Three queues | Sweep cells, MPI jobs and GPU jobs want different hardware | Spot c7a is cheap for independent cells; an HPC instance type with EFA is required for low-latency collectives. hpc6a, not hpc7a as first planned: two fifths of the price for the same scaling question. Either needs a private subnet and a NAT gateway, since an EFA node carries a second interface and EC2 gives no public IP to an instance with two. The GPU queue is `g6.12xlarge`, four L4 cards in one node: the smallest instance that holds a thirty-qubit state in single precision on one card and still has several cards to scale across; a `p4d` with NVLink and EFA is the optional last point if its quota and price allow |
 | Apptainer image | A fresh node must match last week's node bit for bit | No root daemon, so it runs on shared clusters; built once in CI, pulled at job start |
 | EFS | Nodes need one shared scratch filesystem for inputs, the image and job output | Chosen over FSx for Lustre because this account's plan cannot use FSx and the sweep writes one small file per cell; the parallel-I/O lesson is a known gap, recorded in the decisions table |
 | S3 | Results must outlive the cluster | Durable, cheap, and what the next pipeline reads from |
@@ -53,6 +53,7 @@ Each stage adds one capability from the diagram and ends with a done-signal. Sta
 8. **Make the cluster a versioned artifact.** CI validates the cluster YAML, builds the image and runs a smoke job on every PR; Terraform owns IAM, S3 and the budget. Done: a node-type change reaches a running cluster through a pull request alone. Metric: changes shipped without SSH.
 9. **Graphical node, optional.** A DCV-enabled login node running a GUI tool (ParaView is enough). Done: a remote desktop session opens from a browser. Metric: none; this proves the CAE pattern.
 10. **Write it up.** README with the diagram above, the metrics table below and three paragraphs on what broke.
+11. **The same simulation on GPUs.** A `g6` queue with GPUs as a Slurm resource, a CUDA image with CuPy and cuQuantum, and the stage 7 simulator with a CUDA gate kernel behind the same kernel interface and an NCCL exchange behind the same exchange protocol, one rank per GPU. cuStateVec runs the same circuit as the vendor reference. Done: the run completes on one GPU, across the four GPUs of one node and the eight of two, and the single-precision GPU state overlaps the double-precision CPU state to within 1e-6. Metric: time per layer and dollars per run against the `hpc6a` node and the laptop, scaling efficiency across GPUs, and the hand-written kernel against cuStateVec.
 
 ## Decisions and alternatives
 
@@ -70,6 +71,10 @@ Every choice below was made for a reason a reader of the README should be able t
 | On-demand for the MPI queue | Spot everywhere | One interrupted rank kills the whole MPI job |
 | Terraform for surroundings | CDK | Either works; Terraform because the ParallelCluster YAML is already declarative and the two read alike |
 | Parquet per cell | One big CSV | Independent files make tasks idempotent and retryable; a reducer concatenates at the end |
+| Own CUDA kernel, cuStateVec as reference | cuStateVec only | The library would be faster to adopt, but the point of the stage is to show where a GPU's time goes, and a kernel one can read is the only way to see it; the library is run beside it so the reader can judge the gap |
+| NCCL for the GPU exchange | CUDA-aware MPI | Both move device memory without a host copy; NCCL is what every multi-GPU code uses, needs no particular MPI build, and runs over EFA through the aws-ofi-nccl plugin when a node has one. MPI stays for bootstrap only |
+| Single precision on the GPU | Double, as on the CPU | An L4 does double precision at a sixty-fourth of its single rate, which would make the comparison about the card's arithmetic units rather than the simulation; single precision with a measured overlap against the double-precision CPU state is what GPU simulators ship |
+| `g6.12xlarge` | `p4d.24xlarge` | Eight A100s on NVLink with EFA is the proper multi-GPU machine at seven times the price; `g6` answers the single-GPU and PCIe-scaling questions for a few dollars, and the `p4d` point is optional |
 
 ## What is measured
 
@@ -84,6 +89,10 @@ The README reports these numbers. They are blank until the stage that produces t
 | Weak-scaling efficiency (%) | 6 | Cells per node-hour at 16 nodes over 1 node | above 90 |
 | Strong-scaling efficiency (%) | 7 | Fixed state-vector size, T(1) / (N x T(N)) at 2, 4, 8 | reported, with where time goes |
 | Changes shipped without SSH | 8 | Count of merged PRs that reached the cluster | all of them |
+| GPU speed-up (x) and dollars per run | 11 | Time per layer at thirty qubits on one L4 against one `hpc6a` node and the laptop, each priced at its published rate | reported, with where time goes |
+| Multi-GPU scaling efficiency (%) | 11 | T(1) / (N x T(N)) at 2 and 4 GPUs in one node and 8 across two | reported; the two-node point shows what a 40 Gbit/s link does to it |
+| GPU state fidelity | 11 | Overlap of the single-precision GPU state with the double-precision CPU state | above 1 - 1e-6 |
+| Kernel against cuStateVec (x) | 11 | The hand-written kernel's time per layer over cuStateVec's on the same card | within 2 |
 
 The two scaling numbers are the ones an HPC reader will look for first; the cost number is the one a cloud reader will. Reporting both is the point of the project.
 
@@ -92,7 +101,8 @@ The two scaling numbers are the ones an HPC reader will look for first; the cost
 Out of scope, and said so to keep the README honest:
 
 - Real quantum hardware or hardware-simulation tools such as HFSS or COMSOL; the DCV node proves the pattern with an open-source GUI.
-- GPU state-vector simulation (cuQuantum); noted as the natural next stage.
+- GPU simulation beyond one node pair; stage 11 covers one `g6` node and two, and leaves NVLink and GPUDirect over EFA to a `p4d` point that is optional.
+- Tensor-network simulation; the state vector is the workload throughout.
 - Multi-user fairness, accounting or authentication; this is a single-user cluster.
 - Real-time decoding; the sweep is batch.
 

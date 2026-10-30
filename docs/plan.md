@@ -1,6 +1,6 @@
 # Plan
 
-The design is in [design.md](design.md). This file is the order of work: ten stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
+The design is in [design.md](design.md). This file is the order of work: eleven stages, each adding one capability and ending with a done-signal, and the commit that delivers each step. A reader of `git log` should be able to follow this list top to bottom.
 
 ## Stages
 
@@ -16,6 +16,7 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 | 8 | The cluster as a versioned artifact | A node-type change reaches a running cluster through a pull request alone | changes shipped without SSH |
 | 9 | Graphical login node (optional) | A remote desktop session opens from a browser | none; proves the pattern |
 | 10 | Write-up | README with the diagram, the metrics table and what broke | |
+| 11 | The same simulation on GPUs | The state-vector run completes on one GPU, then across the GPUs of one node and of two, with the amplitudes matching the CPU run | time per layer and dollars per run on one `g6` GPU against one `hpc6a` node and the laptop; scaling efficiency at 2 and 4 GPUs over PCIe and at 8 across two nodes; the overlap of the single-precision GPU state with the double-precision CPU state, above 1 - 1e-6; the hand-written kernel's time per layer over cuStateVec's, within 2x. The G-instance quota starts at zero like the HPC one; the request goes in before the stage starts |
 
 ## Commits
 
@@ -116,6 +117,20 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 ### Stage 10, write-up
 
 59. `docs: add readme with architecture, metrics and what broke`
+
+### Stage 11, gpu queue
+
+60. `feat(cluster): add a g6 queue with gpus as a slurm resource`
+61. `feat(jobs): add a smoke job listing every gpu on a node`
+62. `build(image): build a cuda image with cupy and cuquantum`
+63. `feat(mpi): add a cuda gate kernel on cupy arrays`
+64. `feat(mpi): exchange amplitudes between gpus over nccl`
+65. `test(mpi): check the gpu run's overlap with the cpu run`
+66. `feat(mpi): run the circuit on custatevec as the reference`
+67. `feat(jobs): submit the state-vector run across gpus`
+68. `feat(mpi): plot time per layer and cost by device`
+69. `docs(metrics): record gpu speed-up, scaling and cost per run`
+70. `docs: add the gpu path to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
