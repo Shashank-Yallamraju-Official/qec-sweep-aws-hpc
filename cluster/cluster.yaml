@@ -72,8 +72,11 @@ Scheduling:
           Efa:
             Enabled: true
       Networking:
+        # An EFA node carries a second, EFA-only interface, and EC2 gives no public IP
+        # to an instance with two, so the queue lives in the private subnet that
+        # infra/network.tf routes through a NAT gateway.
         SubnetIds:
-          - *subnet
+          - subnet-04055e96bf1c1e771
         PlacementGroup:
           Enabled: true
       Iam: *node-iam
