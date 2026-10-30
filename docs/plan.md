@@ -92,27 +92,29 @@ The design is in [design.md](design.md). This file is the order of work: ten sta
 42. `feat(mpi): shard a state vector across ranks`
 43. `feat(mpi): exchange amplitudes on non-local two-qubit gates`
 44. `test(mpi): match sharded amplitudes to a single-rank run`
-45. `feat(cluster): add an efa-enabled hpc7a queue`
-46. `feat(jobs): submit the state-vector run across ranks`
-47. `perf(mpi): move the gate kernel to c++`
-48. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
+45. `feat(mpi): run a brickwork circuit and record where time goes`
+46. `build(image): build an mpi image on the efa stack`
+47. `feat(cluster): add an efa-enabled hpc7a queue`
+48. `feat(jobs): submit the state-vector run across ranks`
+49. `perf(mpi): move the gate kernel to c++`
+50. `docs(metrics): record strong scaling at 2, 4 and 8 nodes`
 
 ### Stage 8, cluster as versioned artifact
 
-49. `ci(cluster): validate the cluster config on pull request`
-50. `ci(cluster): run the smoke job on pull request`
-51. `ci(cluster): update the running cluster on merge to main`
-52. `ci(infra): plan terraform on pull request, apply on main`
-53. `docs(metrics): record changes shipped without ssh`
+51. `ci(cluster): validate the cluster config on pull request`
+52. `ci(cluster): run the smoke job on pull request`
+53. `ci(cluster): update the running cluster on merge to main`
+54. `ci(infra): plan terraform on pull request, apply on main`
+55. `docs(metrics): record changes shipped without ssh`
 
 ### Stage 9, graphical node
 
-54. `feat(cluster): add a dcv-enabled login node`
-55. `feat(cluster): install paraview on the login node`
+56. `feat(cluster): add a dcv-enabled login node`
+57. `feat(cluster): install paraview on the login node`
 
 ### Stage 10, write-up
 
-56. `docs: add readme with architecture, metrics and what broke`
+58. `docs: add readme with architecture, metrics and what broke`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
