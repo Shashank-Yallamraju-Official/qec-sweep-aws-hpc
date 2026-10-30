@@ -16,6 +16,10 @@ on:
 
 concurrency: infra
 
+# The one input Terraform cannot read from the repository: where budget alerts go.
+env:
+  TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+
 jobs:
   plan:
     if: github.event_name == 'pull_request'
