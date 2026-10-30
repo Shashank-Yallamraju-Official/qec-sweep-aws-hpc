@@ -121,6 +121,22 @@ def test_a_two_qubit_gate_matches_the_dense_matrix_wherever_it_lands(
     assert np.allclose(np.concatenate(run(4, body)), dense(gate, on, 4) @ state)
 
 
+def test_the_norm_is_of_the_whole_state_and_the_account_knows_which_gates_swapped() -> None:
+    state = random_state(4)
+
+    def body(exchange: Exchange) -> tuple[float, dict[str, int | float]]:
+        shard = Shard(4, exchange, slice_of(state, exchange))
+        shard.apply(H, (0,))
+        shard.apply(CNOT, (3, 1))
+        return shard.norm(), shard.account.as_dict()
+
+    for norm, account in run(4, body):
+        assert np.isclose(norm, 1)
+        assert (account["local_gates"], account["far_gates"]) == (1, 1)
+        assert account["compute_seconds"] > 0
+        assert account["exchange_seconds"] > 0
+
+
 def test_two_global_qubits_collect_a_group_of_four_among_eight_ranks() -> None:
     state = random_state(5)
     expected = dense(CZ, (3, 2), 5) @ dense(CNOT, (4, 2), 5) @ state
