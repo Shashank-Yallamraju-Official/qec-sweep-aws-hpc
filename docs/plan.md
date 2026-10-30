@@ -19,7 +19,7 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 | 11 | The same simulation on GPUs | The state-vector run completes on one GPU, then across the GPUs of one node and of two, with the amplitudes matching the CPU run | time per layer and dollars per run on one `g6` GPU against one `hpc6a` node and the laptop; scaling efficiency at 2 and 4 GPUs over PCIe and at 8 across two nodes; the overlap of the single-precision GPU state with the double-precision CPU state, above 1 - 1e-6; the hand-written kernel's time per layer over cuStateVec's, within 2x. The G-instance quota starts at zero like the HPC one; the request goes in before the stage starts |
 | 12 | The decoder loop: generate, train, evaluate | A learned decoder trained on the cluster decodes cells of the grid beside PyMatching, and one chained run goes from samples to a comparison plot without a hand in between | logical error rate of the learned decoder over PyMatching's at distances 3 and 5, with 95% intervals, under depolarising and under correlated circuit-level noise; below one at distance 5 under correlated noise with the intervals apart is the win; GPU-hours and dollars to train; shots and CPU-hours to generate and to evaluate |
 | 13 | Results as a versioned artifact | Every figure in the README walks back to its run record, image digest, commit and inputs through S3 keys alone; a decoder is promoted by a pull request | audit coverage: figures with a complete provenance chain over figures reported, all of them |
-| 14 | A comparison site | Anyone with the link picks two runs, sees their curves with intervals cell by cell and the provenance of each, with no server behind the page; the site rebuilds with fresh data on every merge | Lighthouse performance on a throttled phone profile, 100; first paint under one second; the comparison query under 100 ms in the browser; the first script under 150 kB compressed, the query engine loading after it; time from merge to a refreshed site, under ten minutes |
+| 14 | A comparison site | The site does three things, pick two runs, compare them, trace them, and each is finished: loading, empty and error states, keyboard and screen reader, dark mode, a test that drives it, a budget that fails the build. Anyone with the link does all three with no server behind the page, and the site rebuilds with fresh data on every merge | Lighthouse performance on a throttled phone profile, 100; first paint under one second; the comparison query under 100 ms in the browser; the first script under 150 kB compressed, the query engine loading after it; time from merge to a refreshed site, under ten minutes |
 
 ## Commits
 
@@ -162,7 +162,7 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 
 88. `feat(web): scaffold the site with vite and svelte`
 89. `feat(web): query the catalogue in the browser with duckdb`
-90. `feat(web): list and filter runs by their record fields`
+90. `feat(web): pick two runs from the catalogue`
 91. `feat(web): compare two runs cell by cell with intervals`
 92. `feat(web): draw error-rate curves for the chosen runs`
 93. `feat(web): show each run's provenance chain`
@@ -170,7 +170,7 @@ The design is in [design.md](design.md). This file is the order of work: fourtee
 95. `test(web): drive the comparison end to end in playwright`
 96. `ci(web): check types, tests and bundle size on pull request`
 97. `ci(web): publish the site with its data snapshot on merge`
-98. `docs(metrics): record the site's load, query and bundle figures`
+98. `docs(metrics): record the site's load, query and size figures`
 99. `docs: add the comparison site to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
