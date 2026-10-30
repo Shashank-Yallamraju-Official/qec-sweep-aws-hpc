@@ -32,6 +32,18 @@ def test_the_native_pass_agrees_with_numpy(native: Kernel, gate: Gate, bits: lis
     assert np.allclose(with_native, with_numpy)
 
 
+@pytest.mark.parametrize(("gate", "bits"), [(H, [5]), (T, [4]), (CNOT, [5, 1]), (CZ, [5, 4])])
+def test_keeping_one_slot_writes_that_row_and_leaves_the_others(
+    native: Kernel, gate: Gate, bits: list[int]
+) -> None:
+    whole, kept = stack(4, 4), stack(4, 4)
+    before = kept.copy()
+    native.mix(whole, gate.matrix, bits)
+    native.mix(kept, gate.matrix, bits, keep=2)
+    assert np.allclose(kept[2], whole[2])
+    assert np.array_equal(kept[[0, 1, 3]], before[[0, 1, 3]])
+
+
 def test_the_native_pass_works_in_place_on_the_stack(native: Kernel) -> None:
     group = stack(2, 3)
     before = group.copy()
@@ -41,10 +53,14 @@ def test_the_native_pass_works_in_place_on_the_stack(native: Kernel) -> None:
     assert np.allclose(group, before)
 
 
-def test_the_native_pass_refuses_a_strided_stack(native: Kernel) -> None:
-    strided = stack(2, 3)[:, ::2]
-    with pytest.raises(ValueError, match="contiguous"):
-        native.mix(strided, H.matrix, [0])
+@pytest.mark.parametrize(
+    "bad", [stack(2, 3)[:, ::2], np.zeros((2, 8)), np.zeros((2, 8), dtype=np.complex64)]
+)
+def test_the_native_pass_refuses_a_strided_or_differently_typed_stack(
+    native: Kernel, bad: Amplitudes
+) -> None:
+    with pytest.raises(ValueError, match="contiguous complex128"):
+        native.mix(bad, H.matrix, [0])
 
 
 def test_the_kernel_names_itself(native: Kernel) -> None:

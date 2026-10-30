@@ -25,12 +25,11 @@ class Lockstep:
     def rank(self, rank: int) -> Rank:
         return Rank(self, rank)
 
-    def swap(self, rank: int, send: Amplitudes, peer: int) -> Amplitudes:
+    def swap(self, rank: int, send: Amplitudes, peer: int, into: Amplitudes) -> None:
         self._mailbox[rank, peer] = send
         self._barrier.wait()
-        received = self._mailbox[peer, rank]
+        into[...] = self._mailbox[peer, rank]
         self._barrier.wait()
-        return received
 
     def reduce(self, rank: int, value: float, combine: Callable[[list[float]], float]) -> float:
         self._values[rank] = value
@@ -54,8 +53,8 @@ class Rank:
     def size(self) -> int:
         return self._world.size
 
-    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
-        return self._world.swap(self.rank, send, peer)
+    def swap(self, send: Amplitudes, peer: int, into: Amplitudes) -> None:
+        self._world.swap(self.rank, send, peer, into)
 
     def maximum(self, value: float) -> float:
         return self._world.reduce(self.rank, value, max)

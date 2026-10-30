@@ -21,8 +21,8 @@ class Exchange(Protocol):
     def size(self) -> int:
         """How many ranks there are."""
 
-    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
-        """Send a buffer to ``peer`` and return the one it sends back.
+    def swap(self, send: Amplitudes, peer: int, into: Amplitudes) -> None:
+        """Send a buffer to ``peer`` and receive the one it sends into ``into``.
 
         Every swap is mutual: ``peer`` must be swapping with this rank in the
         same step, or both wait forever.
@@ -41,9 +41,9 @@ class Alone:
     rank = 0
     size = 1
 
-    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
+    def swap(self, send: Amplitudes, peer: int, into: Amplitudes) -> None:
         """Fail: a single rank has nobody to swap with."""
-        msg = f"rank 0 of 1 cannot swap {send.size} amplitudes with peer {peer}"
+        msg = f"rank 0 of 1 cannot swap {send.size} amplitudes with peer {peer} for {into.size}"
         raise LookupError(msg)
 
     def maximum(self, value: float) -> float:
@@ -75,11 +75,9 @@ class World:
         """How many ranks there are."""
         return int(self._comm.Get_size())
 
-    def swap(self, send: Amplitudes, peer: int) -> Amplitudes:
+    def swap(self, send: Amplitudes, peer: int, into: Amplitudes) -> None:
         """Send to ``peer`` and receive from it in one call, so neither side waits on the other."""
-        received = np.empty_like(send)
-        self._comm.Sendrecv(send, dest=peer, recvbuf=received, source=peer)
-        return received
+        self._comm.Sendrecv(send, dest=peer, recvbuf=into, source=peer)
 
     def maximum(self, value: float) -> float:
         """The largest ``value`` any rank passes, on every rank."""
