@@ -10,6 +10,8 @@ jobs=$(cd "$(dirname "$0")" && pwd)
 run_dir=/scratch/$USER/statevector/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir"
 digest=$(apptainer pull --force "$run_dir/mpi.sif" "$image_uri" 2>&1 | tee /dev/stderr | sed -n 's/^INFO: *Digest: *//p')
+# The deploy workflow installs the scripts with the commit they came from beside them.
+commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
 config_hash=
 if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
@@ -24,10 +26,11 @@ for nodes in "$@"; do
   job_ids=$(jq --arg n "$nodes" --argjson id "$job" '. + {($n): $id}' <<<"$job_ids")
   echo "$nodes nodes: $(jq -c .seconds "$run_dir/nodes$nodes.json")"
 done
-jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$image_uri" --arg digest "$digest" \
+jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$image_uri" --arg digest "$digest" --arg commit "$commit" \
   --arg config_hash "$config_hash" --argjson ranks "$ranks" --argjson qubits "$qubits" --argjson layers "$layers" \
   --argjson jobs "$job_ids" --arg submitted "$submitted" --arg finished "$(date -u +%FT%TZ)" \
   '{run: $run, queue: $queue, image: $image, image_digest: ($digest | if . == "" then null else . end),
+    commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
     ranks_per_node: $ranks, qubits: $qubits, layers: $layers, jobs: $jobs,
     submitted: $submitted, finished: $finished}' > "$run_dir/run.json"
