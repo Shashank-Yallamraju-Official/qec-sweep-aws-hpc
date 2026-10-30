@@ -1,0 +1,43 @@
+name: infra
+
+# Terraform's surroundings for the cluster are reviewed as a plan on every pull
+# request that touches them and applied by the merge, from the same runners the
+# cluster workflows use: read-only for the plan, deploying for the apply.
+on:
+  pull_request:
+    paths:
+      - infra/**
+      - .github/workflows/infra.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/**
+      - .github/workflows/infra.yml
+
+concurrency: infra
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init -input=false
+      # The read-only runner cannot take the state lock, and a plan needs none.
+      - run: terraform plan -input=false -lock=false -no-color
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: codebuild-qec-sweep-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init -input=false
+      - run: terraform apply -input=false -auto-approve -no-color
