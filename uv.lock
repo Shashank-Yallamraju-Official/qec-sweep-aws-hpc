@@ -133,6 +133,9 @@ wheels = [
 ec2 = [
     { name = "mypy-boto3-ec2" },
 ]
+s3 = [
+    { name = "mypy-boto3-s3" },
+]
 sns = [
     { name = "mypy-boto3-sns" },
 ]
@@ -754,6 +757,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mypy-boto3-s3"
+version = "1.43.106"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/db/e3922d6c62365c1098da97d9a775e78c66827df5cba11619a7d2a11cdae4/mypy_boto3_s3-1.43.106.tar.gz", hash = "sha256:731195f15830699a36e29d3c8abb2918bccd3587eb2edcb233f8046967893279", size = 79447, upload-time = "2026-09-30T22:44:48.472Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/4a/52419b5496215ab52c6c257134c1ac0da25c1ca5d802f133424d02a43686/mypy_boto3_s3-1.43.106-py3-none-any.whl", hash = "sha256:e233d04dbcf3925522dff4346e75c37344ec3d1cbb82337e5eed2af263847668", size = 86791, upload-time = "2026-09-30T22:44:46.139Z" },
+]
+
+[[package]]
 name = "mypy-boto3-sns"
 version = "1.43.97"
 source = { registry = "https://pypi.org/simple" }
@@ -1198,11 +1210,14 @@ dependencies = [
 mpi = [
     { name = "mpi4py" },
 ]
+results = [
+    { name = "boto3" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "boto3" },
-    { name = "boto3-stubs", extra = ["ec2", "sns"] },
+    { name = "boto3-stubs", extra = ["ec2", "s3", "sns"] },
     { name = "botocore", extra = ["crt"] },
     { name = "mypy" },
     { name = "pre-commit" },
@@ -1213,6 +1228,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", marker = "extra == 'results'", specifier = ">=1.43.122" },
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "mpi4py", marker = "extra == 'mpi'", specifier = ">=4.1" },
     { name = "numpy", specifier = ">=2.5.4" },
@@ -1220,12 +1236,12 @@ requires-dist = [
     { name = "pymatching", specifier = ">=2.4.0" },
     { name = "stim", specifier = ">=1.16.0" },
 ]
-provides-extras = ["mpi"]
+provides-extras = ["mpi", "results"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3", specifier = ">=1.43.122" },
-    { name = "boto3-stubs", extras = ["ec2", "sns"], specifier = ">=1.43.122" },
+    { name = "boto3-stubs", extras = ["ec2", "s3", "sns"], specifier = ">=1.43.122" },
     { name = "botocore", extras = ["crt"], specifier = ">=1.43.122" },
     { name = "mypy", specifier = ">=1.14" },
     { name = "pre-commit", specifier = ">=4" },
