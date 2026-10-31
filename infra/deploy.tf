@@ -94,8 +94,8 @@ resource "aws_codebuild_project" "runner" {
 # A queued Actions job whose runs-on label names a project lands on it, and only
 # when the repository owner queued it: a stranger's pull request runs nowhere in
 # this account, not even read-only. A job queued event cannot be filtered by
-# branch, so the deploy project also insists on the workflow named deploy,
-# which only runs on main.
+# branch, so the deploy project also insists on the two workflows whose main
+# jobs it serves, deploy and infra, which ask for it only on main.
 # GitHub refused to let CodeBuild register these hooks itself through the app
 # installation, so CodeBuild only issues the endpoint and secret here and the
 # repository's hooks are created once by hand from the outputs below:
@@ -116,7 +116,7 @@ resource "aws_codebuild_webhook" "runner" {
       pattern = "^${var.github_actor_id}$"
     }
     dynamic "filter" {
-      for_each = each.key == "deploy" ? ["^deploy$"] : []
+      for_each = each.key == "deploy" ? ["^(deploy|infra)$"] : []
       content {
         type    = "WORKFLOW_NAME"
         pattern = filter.value
