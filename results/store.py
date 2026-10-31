@@ -43,7 +43,9 @@ class LocalStore:
 
     def keys(self, prefix: str = "") -> Iterator[str]:
         """Every file under the prefix, as keys relative to the root."""
-        for path in sorted(p for p in self.root.rglob("*") if p.is_file()):
+        base = self.root / prefix
+        walk = base if base.is_dir() else base.parent
+        for path in sorted(p for p in walk.rglob("*") if p.is_file()):
             key = path.relative_to(self.root).as_posix()
             if key.startswith(prefix):
                 yield key
@@ -99,11 +101,11 @@ def open_store(uri: str) -> Store:
 def locate(uri: str) -> tuple[Store, str]:
     """Split a run's full address into its store and its key within it.
 
-    ``s3://bucket/sweeps/x`` is the key ``sweeps/x`` in that bucket; an absolute
-    path is a key under the filesystem root, so either form is read the same way.
+    ``s3://bucket/sweeps/x`` is the key ``sweeps/x`` in that bucket. A directory
+    is read the same way, as ``<kind>/<run>`` under the store two levels up.
     """
     if uri.startswith(S3_SCHEME):
         bucket, _, key = uri.removeprefix(S3_SCHEME).partition("/")
         return S3Store(bucket), key.rstrip("/")
     path = Path(uri).resolve()
-    return LocalStore(Path(path.anchor)), path.relative_to(path.anchor).as_posix()
+    return LocalStore(path.parents[1]), f"{path.parent.name}/{path.name}"

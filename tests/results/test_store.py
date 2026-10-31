@@ -80,7 +80,7 @@ def test_locate_splits_an_s3_address(uri: str, key: str) -> None:
     assert (store.bucket, found) == ("bucket", key)
 
 
-def test_locate_reads_a_path_as_a_key_under_the_filesystem_root(tmp_path: Path) -> None:
+def test_locate_reads_a_directory_as_a_run_in_the_store_above_it(tmp_path: Path) -> None:
     store, key = locate(str(tmp_path / "sweeps/x"))
-    assert isinstance(store, LocalStore)
-    assert store.root / key == (tmp_path / "sweeps/x").resolve()
+    assert store == LocalStore(tmp_path.resolve())
+    assert key == "sweeps/x"
