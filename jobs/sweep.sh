@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 # Submits the whole grid as one Slurm array, and a sync job that runs when it is done.
-# usage: sweep.sh <image uri> s3://bucket/prefix [queue] [nodes]
+# usage: sweep.sh [-s seed] [-p parent-run]... <image uri> s3://bucket/prefix [queue] [nodes]
 # Each run records what it used in run.json: what it gets costed from, and what an
-# audit walks back to, the image's digest, the cluster configuration and the job ids.
+# audit walks back to, the image's digest, the cluster configuration, the job ids,
+# the sampler seed every cell was given and the runs this one was made from.
 set -euo pipefail
+seed=0 parents='[]'
+while getopts 's:p:' option; do
+  case $option in
+    s) seed=$OPTARG ;;
+    p) parents=$(jq --arg parent "$OPTARG" '. + [$parent]' <<<"$parents") ;;
+    *) exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
 image_uri=$1 destination=${2%/} queue=${3:-sweep} nodes=${4:-}
+[[ $seed =~ ^[0-9]+$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
 jobs=$(cd "$(dirname "$0")" && pwd)
 # Keyed by user so two people's runs never contend for one directory.
 run_dir=/scratch/$USER/sweep/$(date -u +%Y%m%dT%H%M%SZ)
@@ -32,7 +43,7 @@ if [[ -n $nodes ]]; then
 fi
 submitted=$(date -u +%FT%TZ)
 array=$(sbatch --parsable --partition "$queue" --array="$range" "${pin[@]+"${pin[@]}"}" \
-  --export="ALL,RUN_DIR=$run_dir,SWEEP_IMAGE=$run_dir/sweep.sif" \
+  --export="ALL,RUN_DIR=$run_dir,SWEEP_IMAGE=$run_dir/sweep.sif,SEED=$seed" \
   --output "$run_dir/logs/%a.out" "$jobs/sweep.sbatch")
 sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
   --export="ALL,RUN_DIR=$run_dir,DESTINATION=$destination,QUEUE=$queue" \
@@ -41,10 +52,11 @@ sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
 # closes it cannot start before the array ends.
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg nodes "$nodes" --arg image "$image_uri" \
   --arg digest "$digest" --arg commit "$commit" --arg config_hash "$config_hash" --arg submitted "$submitted" \
-  --arg array "$array" --arg sync "$sync" \
+  --arg array "$array" --arg sync "$sync" --argjson seed "$seed" --argjson parents "$parents" \
   '{run: $run, queue: $queue, nodes: ($nodes | if . == "" then null else tonumber end),
     instance_type: "c7a.large", image: $image, image_digest: ($digest | if . == "" then null else . end),
     commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
-    jobs: {array: ($array | tonumber? // .), sync: ($sync | tonumber? // .)}, submitted: $submitted}' > "$run_dir/run.json"
+    jobs: {array: ($array | tonumber? // .), sync: ($sync | tonumber? // .)},
+    seed: $seed, parents: $parents, submitted: $submitted}' > "$run_dir/run.json"
 echo "$run_dir array=$array sync=$sync"
