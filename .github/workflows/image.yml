@@ -37,15 +37,17 @@ jobs:
           repository=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
           echo "name=ghcr.io/$repository/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
       - id: unchanged
-        # An image is rebuilt only when what goes into it changed since a commit whose
-        # image the registry already holds: a pull request's base, or the commit before
-        # this one on main. Otherwise that image is given this commit's tag as well.
+        # An image is rebuilt only when what goes into it, this recipe included, changed
+        # since a pull request's base or the commit before this one on main. Otherwise
+        # the image of the last commit that changed those inputs, which this workflow
+        # built, is given this commit's tag as well.
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          inputs=(image/${{ matrix.definition }}.def image/${{ matrix.packages }} sweep mpi results pyproject.toml)
+          inputs=(image/${{ matrix.definition }}.def image/${{ matrix.packages }} sweep mpi results pyproject.toml
+            .github/workflows/image.yml)
           if git cat-file -e "$BASE^{commit}" 2>/dev/null && git diff --quiet "$BASE" "$SHA" -- "${inputs[@]}"; then
-            echo "since=$BASE" >> "$GITHUB_OUTPUT"
+            echo "since=$(git log -1 --format=%H "$BASE" -- "${inputs[@]}")" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.unchanged.outputs.since != ''
         uses: oras-project/setup-oras@v1
@@ -68,11 +70,13 @@ jobs:
           enable-cache: true
       - if: steps.unchanged.outputs.since == '' || steps.retag.outcome == 'failure'
         run: uv sync && uv build --wheel
-      # Apptainer's own releases carry no arm64 package; its PPA builds for both.
+      # Apptainer's own releases carry no arm64 package; its PPA builds for both. The
+      # builder is held to the version the nodes run, so a SIF never outgrows them.
       - if: steps.unchanged.outputs.since == '' || steps.retag.outcome == 'failure'
         run: |
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get install -y --no-install-recommends apptainer
+          [ "$(apptainer --version)" = 'apptainer version 1.5.5' ] || { apptainer --version; exit 1; }
       - if: steps.unchanged.outputs.since == '' || steps.retag.outcome == 'failure'
         run: sudo apptainer build image.sif image/${{ matrix.definition }}.def && sudo chown "$USER" image.sif
       - if: steps.unchanged.outputs.since == '' || steps.retag.outcome == 'failure'

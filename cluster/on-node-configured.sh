@@ -21,6 +21,8 @@ if ! command -v apptainer >/dev/null; then
     arm64)
       add-apt-repository -y ppa:apptainer/ppa >/dev/null
       apt-get install -y -q apptainer >/dev/null
+      # The PPA is unpinned; a node whose Apptainer differs from the images' builder stops here.
+      [[ $(apptainer --version) == 'apptainer version 1.5.5' ]] || { apptainer --version; exit 1; }
       ;;
   esac
 fi

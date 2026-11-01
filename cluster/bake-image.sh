@@ -23,6 +23,7 @@ case $(dpkg --print-architecture) in
   arm64)
     add-apt-repository -y ppa:apptainer/ppa >/dev/null
     apt-get install -y -q apptainer >/dev/null
+    [[ $(apptainer --version) == 'apptainer version 1.5.5' ]] || { apptainer --version; exit 1; }
     images=(sweep-arm64)
     ;;
   *) echo "no Apptainer for $(dpkg --print-architecture)" >&2; exit 1 ;;
