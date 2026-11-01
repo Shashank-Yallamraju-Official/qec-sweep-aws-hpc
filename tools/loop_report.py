@@ -82,6 +82,11 @@ class Loop:
         """Commit to first cell."""
         return self.first_cell - self.committed
 
+    @property
+    def platform(self) -> timedelta:
+        """The loop without the wait: what the platform took, build and cluster together."""
+        return self.build + self.cluster
+
 
 def parse_image(uri: str) -> ImageRef:
     """The image name and commit an image URI carries in its tag.

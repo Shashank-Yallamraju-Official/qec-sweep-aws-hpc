@@ -33,9 +33,10 @@ import matplotlib.pyplot as plt  # the backend must be chosen before this import
 Price = Callable[[str], float]
 """An instance type to its hourly on-demand rate."""
 
+# The wait between the image and a submission is a person's, not the platform's, and
+# runs to a day in the records; it is written beside each bar rather than stacked on it.
 PHASES = (
     ("build", "commit to image built", "#4c72b0"),
-    ("wait", "image built to submission", "#bbbbbb"),
     ("cluster", "submission to first cell", "#dd8452"),
 )
 
@@ -88,7 +89,11 @@ def plot(before: Measured, after: Measured, out: Path) -> None:
         heights = [minutes(m.loop, phase) for m in sides]
         loop_ax.bar(labels, heights, bottom=bottom, label=name, color=colour, width=0.6)
         bottom = [b + h for b, h in zip(bottom, heights, strict=True)]
-    loop_ax.set_ylabel("minutes from commit to first cell")
+    for label, top, m in zip(labels, bottom, sides, strict=True):
+        note = f"waited {minutes(m.loop, 'wait'):.0f} min"
+        loop_ax.annotate(note, (label, top), ha="center", va="bottom", fontsize="small")
+    loop_ax.set_ylim(top=max(bottom) * 1.15)
+    loop_ax.set_ylabel("minutes the platform took, commit to first cell")
     loop_ax.set_title("loop time")
     loop_ax.legend(fontsize="small")
     running = [m.running for m in sides]
@@ -107,10 +112,12 @@ def plot(before: Measured, after: Measured, out: Path) -> None:
 
 
 def summary(before: Measured, after: Measured) -> str:
-    """The two ratios the stage is judged on, in one line."""
-    loop_before, loop_after = minutes(before.loop, "total"), minutes(after.loop, "total")
+    """The two ratios the stage is judged on, with the waits beside them, in one line."""
+    loop_before, loop_after = minutes(before.loop, "platform"), minutes(after.loop, "platform")
+    waits = f"{minutes(before.loop, 'wait'):.1f} min -> {minutes(after.loop, 'wait'):.1f} min"
     return (
-        f"loop {loop_before:.1f} min -> {loop_after:.1f} min ({loop_after / loop_before:.2f}x), "
+        f"loop {loop_before:.1f} min -> {loop_after:.1f} min ({loop_after / loop_before:.2f}x) "
+        f"with {waits} of waiting, "
         f"billed ${before.billed:.3f} -> ${after.billed:.3f} ({after.billed / before.billed:.2f}x)"
     )
 

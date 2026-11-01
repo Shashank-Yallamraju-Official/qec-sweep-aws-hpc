@@ -61,7 +61,10 @@ def test_plot_writes_a_png(tmp_path: Path) -> None:
 
 def test_summary_puts_the_two_ratios_in_one_line() -> None:
     text = summary(measured("before", 13.4, 0.025, 0.30), measured("after", 6.7, 0.02, 0.10))
-    assert text == "loop 13.4 min -> 6.7 min (0.50x), billed $0.300 -> $0.100 (0.33x)"
+    assert text == (
+        "loop 12.4 min -> 5.7 min (0.46x) with 1.0 min -> 1.0 min of waiting, "
+        "billed $0.300 -> $0.100 (0.33x)"
+    )
 
 
 def test_main_measures_both_runs_and_draws_them(
