@@ -1,6 +1,6 @@
-/// <reference types="vitest/config" />
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { defineConfig, type Plugin } from 'vite'
+import type { Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 // The stylesheet is a kilobyte; inlined, the first paint waits for nothing but the HTML.
 function inlineCss(): Plugin {
