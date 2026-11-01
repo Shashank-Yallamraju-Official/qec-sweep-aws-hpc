@@ -91,18 +91,21 @@ def read_record(store: Store, key: str) -> RunRecord:
     return parse_record(store.uri(key), kind, store.read(f"{key}/{RECORD}").decode())
 
 
+def is_cell(key: str, run_key: str) -> bool:
+    """Whether a key is a cell of the run: a Parquet file right beside its record."""
+    prefix = f"{run_key}/"
+    return (
+        key.startswith(prefix) and key.endswith(".parquet") and "/" not in key.removeprefix(prefix)
+    )
+
+
 def read_cells(store: Store, key: str) -> pa.Table:
     """Every cell the run at a key wrote, as one table.
 
     Raises:
         FileNotFoundError: When the run wrote no cells.
     """
-    prefix = f"{key}/"
-    files = [
-        k
-        for k in store.keys(prefix)
-        if k.endswith(".parquet") and "/" not in k.removeprefix(prefix)
-    ]
+    files = [k for k in store.keys(f"{key}/") if is_cell(k, key)]
     if not files:
         msg = f"no cells under {store.uri(key)}"
         raise FileNotFoundError(msg)
