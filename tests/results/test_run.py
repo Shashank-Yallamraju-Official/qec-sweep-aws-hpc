@@ -32,6 +32,11 @@ def test_what_only_one_kind_of_run_records_lands_in_parameters() -> None:
     assert record.nodes is None
 
 
+def test_a_record_without_a_run_name_is_reported_by_address() -> None:
+    with pytest.raises(ValueError, match="s3://b/sweeps/y record lacks queue, run"):
+        parse_record("s3://b/sweeps/y", "sweeps", json.dumps({"submitted": "2026-10-30T00:00:00Z"}))
+
+
 def test_an_unfinished_record_has_no_finish() -> None:
     record = parse_record("k", "sweeps", json.dumps({**THIN_RECORD, "finished": None}))
     assert record.finished is None

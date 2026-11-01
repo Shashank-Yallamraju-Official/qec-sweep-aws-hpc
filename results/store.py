@@ -89,8 +89,16 @@ class S3Store:
                 yield str(key)
 
     def read(self, key: str) -> bytes:
-        """The object's bytes."""
-        with self.client.get_object(Bucket=self.bucket, Key=key)["Body"] as body:
+        """The object's bytes.
+
+        Raises:
+            FileNotFoundError: When there is no such object, as a directory would.
+        """
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+        except self.client.exceptions.NoSuchKey as error:
+            raise FileNotFoundError(self.uri(key)) from error
+        with response["Body"] as body:
             return bytes(body.read())
 
     def write(self, key: str, data: bytes) -> None:
