@@ -17,7 +17,7 @@
 
   function describe(run: Run): string {
     const nodes = run.nodesUsed ?? run.nodes
-    const where = nodes === null ? run.queue : `${nodes} nodes`
+    const where = nodes === null ? run.queue : nodes === 1 ? '1 node' : `${nodes} nodes`
     return `${run.run}, ${when.format(run.submitted)} UTC, ${where}`
   }
 </script>
