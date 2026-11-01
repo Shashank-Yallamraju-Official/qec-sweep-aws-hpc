@@ -29,4 +29,4 @@ jobs:
           if git show "origin/${{ github.base_ref }}:models/decoder.json" > current.json 2>/dev/null; then
             against=(--against current.json)
           fi
-          uv run results-promote models/decoder.json "${against[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          uv run results-promote models/decoder.json "${against[@]}" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
