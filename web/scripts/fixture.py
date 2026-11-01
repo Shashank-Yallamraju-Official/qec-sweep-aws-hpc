@@ -27,7 +27,6 @@ DISTANCES = (3, 5, 7, 9, 11)
 NOISE_RATES = tuple(float(f"{p:.5g}") for p in (1e-3 * 1.5**i for i in range(8)))
 SHOTS = 100_000
 THRESHOLD = 0.0095
-BUCKET = "s3://qec-sweep-results-000000000000"
 
 
 def logical_error_rate(distance: int, noise: float, factor: float) -> float:
@@ -117,7 +116,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.store.exists():
         print(f"fixture: {args.store} exists; remove it first", file=sys.stderr)
         return 2
-    reference = f"{BUCKET}/sweeps/20261030T204955Z"
+    # A parent is named by its full address, which for a directory is its absolute path.
+    reference = str(args.store.resolve() / "sweeps" / "20261030T204955Z")
     write_sweep(args.store, "20261030T204955Z", seed=0, factor=1.0, parents=[])
     write_sweep(args.store, "20261101T171838Z", seed=1, factor=1.0, parents=[reference])
     write_sweep(args.store, "20261102T090000Z", seed=0, factor=0.8, parents=[reference])

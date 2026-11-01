@@ -3,6 +3,7 @@
   import { loadRuns, type Run } from './lib/catalogue'
   import RunPicker from './lib/RunPicker.svelte'
   import ComparisonView from './lib/Comparison.svelte'
+  import Provenance from './lib/Provenance.svelte'
   import { compareRuns, type Comparison } from './lib/compare'
   import { assignColours, defaults, fromUrl, toSearch, type Selection } from './lib/selection'
 
@@ -133,6 +134,13 @@
         </div>
       {:else if judged}
         <ComparisonView comparison={judged.comparison} a={judged.a} b={judged.b} {colours} stale={judging} />
+        <Provenance
+          runs={[judged.a, judged.b]}
+          labels={['Reference', 'Judged']}
+          {colours}
+          known={comparable}
+          onparent={(parent, child) => choose({ a: parent, b: child })}
+        />
       {:else}
         <p class="quiet" role="status">Joining the two runs cell by cell.</p>
       {/if}
