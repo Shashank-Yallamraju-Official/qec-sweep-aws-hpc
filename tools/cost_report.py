@@ -11,18 +11,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import boto3
 
 if TYPE_CHECKING:
     from mypy_boto3_ec2.literals import InstanceTypeType
 
-IDLE = timedelta(minutes=10)
+IDLE_BEFORE_RECORDED = timedelta(minutes=10)
 REGION = "us-east-2"
 ZONE = "us-east-2b"
 LOCATION = "US East (Ohio)"
@@ -30,7 +30,11 @@ LOCATION = "US East (Ohio)"
 
 @dataclass(frozen=True)
 class Run:
-    """What a sweep used, as ``jobs/sweep.sh`` and ``jobs/sync.sbatch`` recorded it."""
+    """What a sweep used, as ``jobs/sweep.sh`` and ``jobs/sync.sbatch`` recorded it.
+
+    Attributes:
+        idle: How long the cluster kept a node after its last job before scaling it down.
+    """
 
     run: str
     queue: str
@@ -38,19 +42,28 @@ class Run:
     nodes: int
     submitted: datetime
     finished: datetime
+    idle: timedelta
 
 
 def read_run(path: Path) -> Run:
-    """Read a ``run.json``; the nodes the run actually used beat the count it asked for.
+    """Read a ``run.json`` file."""
+    return parse_run(json.loads(path.read_text()))
+
+
+def parse_run(record: Mapping[str, Any]) -> Run:
+    """A run from its record; the nodes the run actually used beat the count it asked for.
+
+    A record from before the idle time was written down ran under the ten minutes
+    the cluster held until stage 15.
 
     Raises:
         ValueError: When the record names no node count at all.
     """
-    record = json.loads(path.read_text())
     nodes = record.get("nodes_used") or record.get("nodes")
     if not nodes:
-        msg = f"{path} has no node count: neither nodes_used nor nodes"
+        msg = f"{record.get('run', 'the record')} has no node count: neither nodes_used nor nodes"
         raise ValueError(msg)
+    idle_minutes = record.get("scaledown_idle_minutes")
     return Run(
         run=record["run"],
         queue=record["queue"],
@@ -58,6 +71,7 @@ def read_run(path: Path) -> Run:
         nodes=int(nodes),
         submitted=datetime.fromisoformat(record["submitted"]),
         finished=datetime.fromisoformat(record["finished"]),
+        idle=timedelta(minutes=idle_minutes) if idle_minutes else IDLE_BEFORE_RECORDED,
     )
 
 
@@ -66,9 +80,9 @@ def running_node_hours(run: Run) -> float:
     return run.nodes * (run.finished - run.submitted).total_seconds() / 3600
 
 
-def billed_node_hours(run: Run, idle: timedelta = IDLE) -> float:
+def billed_node_hours(run: Run) -> float:
     """Node-hours EC2 bills if nothing follows: the run plus the idle tail before scale-down."""
-    return run.nodes * (run.finished - run.submitted + idle).total_seconds() / 3600
+    return run.nodes * (run.finished - run.submitted + run.idle).total_seconds() / 3600
 
 
 def cost(node_hours: float, price_per_hour: float) -> float:

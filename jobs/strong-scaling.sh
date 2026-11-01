@@ -22,8 +22,11 @@ read -r digest sif < <("$jobs/pull-image.sh" "$image_uri")
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
-config_hash=
-if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
+config_hash='' idle=''
+if [[ -f $config ]]; then
+  config_hash=$(sha256sum "$config" | cut -c1-64)
+  idle=$(sed -n 's/^ *ScaledownIdletime: *//p' "$config" | head -1)
+fi
 submitted=$(date -u +%FT%TZ)
 job_ids='{}'
 for nodes in "$@"; do
@@ -36,11 +39,12 @@ for nodes in "$@"; do
   echo "$nodes nodes: $(jq -c .seconds "$run_dir/nodes$nodes.json")"
 done
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$image_uri" --arg digest "$digest" --arg commit "$commit" \
-  --arg config_hash "$config_hash" --argjson ranks "$ranks" --argjson qubits "$qubits" --argjson layers "$layers" \
+  --arg config_hash "$config_hash" --arg idle "$idle" --argjson ranks "$ranks" --argjson qubits "$qubits" --argjson layers "$layers" \
   --argjson jobs "$job_ids" --argjson parents "$parents" --arg submitted "$submitted" --arg finished "$(date -u +%FT%TZ)" \
   '{run: $run, queue: $queue, image: $image, image_digest: ($digest | if . == "" then null else . end),
     commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
+    scaledown_idle_minutes: ($idle | if . == "" then null else tonumber end),
     ranks_per_node: $ranks, qubits: $qubits, layers: $layers, jobs: $jobs, parents: $parents,
     submitted: $submitted, finished: $finished}' > "$run_dir/run.json"
 aws s3 cp --quiet --recursive "$run_dir" "$destination/$(basename "$run_dir")/"

@@ -22,6 +22,7 @@ RUN = Run(
     nodes=4,
     submitted=datetime(2026, 10, 30, 0, 11, 36, tzinfo=UTC),
     finished=datetime(2026, 10, 30, 0, 21, 36, tzinfo=UTC),
+    idle=timedelta(minutes=10),
 )
 
 
@@ -42,7 +43,22 @@ def test_running_node_hours_cover_submission_to_finish() -> None:
 
 
 def test_billed_node_hours_add_the_idle_tail_before_scale_down() -> None:
-    assert billed_node_hours(RUN, idle=timedelta(minutes=10)) == pytest.approx(4 * 20 / 60)
+    assert billed_node_hours(RUN) == pytest.approx(4 * 20 / 60)
+
+
+def test_read_run_takes_the_idle_tail_from_the_record(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(record(scaledown_idle_minutes=3)))
+    assert read_run(path).idle == timedelta(minutes=3)
+    assert billed_node_hours(read_run(path)) == pytest.approx(4 * 13 / 60)
+
+
+def test_read_run_assumes_ten_idle_minutes_for_a_record_that_predates_the_field(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(record()))
+    assert read_run(path).idle == timedelta(minutes=10)
 
 
 def test_cost_is_node_hours_at_the_rate() -> None:

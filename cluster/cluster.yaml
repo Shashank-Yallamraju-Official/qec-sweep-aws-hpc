@@ -33,8 +33,10 @@ HeadNode:
 Scheduling:
   Scheduler: slurm
   SlurmSettings:
-    # The cost guardrail from the design: compute scales to zero after ten idle minutes.
-    ScaledownIdletime: 10
+    # The cost guardrail from the design: compute scales to zero when idle. Sweep
+    # cells take seconds, so three minutes cover the gap between back-to-back runs
+    # and bill a third of the ten-minute tail stage 6 measured.
+    ScaledownIdletime: 3
   SlurmQueues:
     - Name: sweep
       Image: *x86-image
