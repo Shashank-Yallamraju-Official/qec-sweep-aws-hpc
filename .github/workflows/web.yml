@@ -8,6 +8,7 @@ on:
     paths:
       - web/**
       - results/**
+      - sweep/**
       - .github/workflows/web.yml
 
 defaults:
