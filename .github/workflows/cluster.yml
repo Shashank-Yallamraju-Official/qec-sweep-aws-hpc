@@ -17,6 +17,9 @@ jobs:
         with:
           node-version: 20
       - uses: astral-sh/setup-uv@v6
+        with:
+          # Project runners are not GitHub's, so the cache is not on by itself.
+          enable-cache: true
       # The two launch-template validators call RunInstances in dry-run mode, which
       # still needs the RunInstances permission the read-only runner does not hold;
       # the deploy on main runs them for real. A dry run that would have succeeded

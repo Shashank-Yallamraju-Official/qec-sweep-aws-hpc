@@ -28,6 +28,8 @@ jobs:
         with:
           node-version: 22
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - run: uv sync --extra results
       - name: snapshot the catalogue and every sweep's cells
         run: uv run web/scripts/snapshot.py "s3://$BUCKET" web/public/data
