@@ -15,7 +15,7 @@ while getopts 's:p:' option; do
 done
 shift $((OPTIND - 1))
 image_uri=$1 destination=${2%/} queue=${3:-sweep} nodes=${4:-}
-[[ $seed =~ ^[0-9]+$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
+[[ $seed =~ ^(0|[1-9][0-9]*)$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
 jobs=$(cd "$(dirname "$0")" && pwd)
 # Keyed by user so two people's runs never contend for one directory.
 run_dir=/scratch/$USER/sweep/$(date -u +%Y%m%dT%H%M%SZ)
