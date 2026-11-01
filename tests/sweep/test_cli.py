@@ -18,7 +18,7 @@ def test_main_reports_invalid_cell(tmp_path: Path, capsys: pytest.CaptureFixture
 
 
 def test_main_runs_a_grid_cell_by_index(tmp_path: Path) -> None:
-    assert main(["--index", "0", "--out", str(tmp_path)]) == 0
+    assert main(["--index", "199", "--out", str(tmp_path)]) == 0
     assert (tmp_path / "d3_p0.001_s100000.parquet").exists()
 
 
