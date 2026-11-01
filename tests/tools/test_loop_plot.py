@@ -2,9 +2,8 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from tools.loop_plot import Measured, main, measure, plot, summary
 
-from tests.tools.conftest import (
+from tests.tools.fakes import (
     BUILT,
     COMMITTED,
     FIRST,
@@ -14,6 +13,7 @@ from tests.tools.conftest import (
     fetch,
     write_run,
 )
+from tools.loop_plot import Measured, main, measure, plot, summary
 from tools.loop_report import Loop
 
 PRICES = {"c7a.large": 0.10, "c8g.large": 0.08}

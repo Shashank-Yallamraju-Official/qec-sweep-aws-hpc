@@ -6,7 +6,7 @@ import pytest
 
 from results.run import read_cells, read_record
 from results.store import LocalStore
-from tests.tools.conftest import (
+from tests.tools.fakes import (
     BUILT,
     COMMITTED,
     FIRST,
