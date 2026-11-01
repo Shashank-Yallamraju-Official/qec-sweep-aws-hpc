@@ -15,7 +15,7 @@ The design is in [design.md](design.md). This file is the order of work: fifteen
 | 7 | Tight coupling over MPI on EFA | A strong-scaling plot and an account of where the time goes | strong-scaling efficiency over TCP, provisional: **61%** at 2 nodes, **39%** at 4, **26%** at 8 and **21%** at 16, for 25 qubits and six brickwork layers on `c7a.large` nodes, two ranks per node, 10.3 s on one node and 3.1 s on sixteen. The time goes to the exchanges: a twelfth of it at one node, two fifths at two, three fifths at four, seven tenths at eight and over three quarters at sixteen, while the computing part halves with each doubling as it should, 9.5 s down to 0.9 s. The EFA points were planned on `hpc6a.48xlarge`; the HPC quota request (1,536 vCPUs, lowered to 768) went to manual review and is assumed refused, so they move to `c5n.9xlarge`, 36 vCPUs with 50 Gbit/s EFA from the Standard quota, 32 ranks a node, at 2, 4 and 8 nodes once that quota rises from 64 to 288 vCPUs; the hpc6a queue stays in the configuration for the day its quota lands. Two things broke on the way: each rank runs in its own container and user namespace, so Open MPI's shared-memory single-copy path hangs until it is turned off; and an EFA node carries a second network interface, so the queue needs a private subnet and a NAT gateway |
 | 8 | The cluster as a versioned artifact, and complete run records | A node-type change reaches a running cluster through a pull request alone, and every run from here on names the image digest, the cluster configuration and its jobs, in a bucket whose versions cannot be deleted for a year | changes shipped without SSH: every change to the cluster now travels through a pull request. On the pull request, ParallelCluster validates the configuration against the account from a read-only runner (**9 runs** on this stage's own pull request, 3 of them after the workflow was right), the running cluster's head node runs the smoke job through one fixed Systems Manager document and two nodes answer, and Terraform plans. On the merge, the job scripts are installed beside their commit and a changed configuration is applied with the compute fleet stopped around it. The merge of this stage's pull request is the first change shipped that way; each later stage's row carries the count forward. Four things broke: the project's managed policy denies every IAM identity-provider action, so GitHub's OIDC federation is out and the runners are CodeBuild projects carrying roles; GitHub would not let CodeBuild register its own webhooks, which are made once by hand from the endpoint Terraform issues; the dry run needs RunInstances even in dry-run mode, so the two launch validators run only on main; and a dry run that would succeed still exits 1 |
 | 9 | Graphical login node (optional) | A remote desktop session opens from a browser | none; proves the pattern |
-| 10 | Write-up | README with the diagram, the metrics table and what broke | |
+| 10 | Write-up | A README in every top-level directory, then the root README with the diagram, the metrics table, what broke and the map | |
 | 11 | The same simulation on GPUs, optional while the account has no GPU quota | The state-vector run completes on one GPU, then across the GPUs of one node and of two, with the amplitudes matching the CPU run | time per layer and dollars per run on one `g6` GPU against one `hpc6a` node and the laptop; scaling efficiency at 2 and 4 GPUs over PCIe and at 8 across two nodes; the overlap of the single-precision GPU state with the double-precision CPU state, above 1 - 1e-6; the hand-written kernel's time per layer over cuStateVec's, within 2x. Every accelerated quota in the project is zero: the G request for 96 vCPUs was refused on 2026-10-30 and an appeal is open; P, Inf, Trn and DL are zero too. The stage is done last, if at all; the interfaces it plugs into are built without it |
 | 12 | The decoder loop: generate, train, evaluate | A learned decoder trained on the cluster decodes cells of the grid beside PyMatching, and one chained run goes from samples to a comparison plot without a hand in between | logical error rate of the learned decoder over PyMatching's at distances 3 and 5, with 95% intervals, under depolarising and under correlated circuit-level noise; below one at distance 5 under correlated noise with the intervals apart is the win; node-hours and dollars to train on `c7a.8xlarge` nodes, the device being a run parameter for the day a GPU queue exists; shots and node-hours to generate and to evaluate |
 | 13 | Results as a versioned artifact | Every figure in the README walks back to its run record, image digest, commit and inputs through S3 keys alone; a decoder is promoted by a pull request | audit coverage: figures with a complete provenance chain over figures reported, all of them |
@@ -126,73 +126,74 @@ The order of work from stage 8 on is 13, 14, 15, 12, 9, 10; the EFA points of st
 
 ### Stage 10, write-up
 
-63. `docs: add readme with architecture, metrics and what broke`
+63. `docs: add a readme to each package`
+64. `docs: add readme with architecture, metrics and what broke`
 
 ### Stage 11, gpu queue (last, and only with a GPU quota)
 
-64. `feat(cluster): add a g6 queue with gpus as a slurm resource`
-65. `feat(jobs): add a smoke job listing every gpu on a node`
-66. `build(image): build a cuda image with cupy and cuquantum`
-67. `feat(mpi): add a cuda gate kernel on cupy arrays`
-68. `feat(mpi): exchange amplitudes between gpus over nccl`
-69. `test(mpi): check the gpu run's overlap with the cpu run`
-70. `feat(mpi): run the circuit on custatevec as the reference`
-71. `feat(jobs): submit the state-vector run across gpus`
-72. `feat(mpi): plot time per layer and cost by device`
-73. `docs(metrics): record gpu speed-up, scaling and cost per run`
-74. `docs: add the gpu path to the readme`
+65. `feat(cluster): add a g6 queue with gpus as a slurm resource`
+66. `feat(jobs): add a smoke job listing every gpu on a node`
+67. `build(image): build a cuda image with cupy and cuquantum`
+68. `feat(mpi): add a cuda gate kernel on cupy arrays`
+69. `feat(mpi): exchange amplitudes between gpus over nccl`
+70. `test(mpi): check the gpu run's overlap with the cpu run`
+71. `feat(mpi): run the circuit on custatevec as the reference`
+72. `feat(jobs): submit the state-vector run across gpus`
+73. `feat(mpi): plot time per layer and cost by device`
+74. `docs(metrics): record gpu speed-up, scaling and cost per run`
+75. `docs: add the gpu path to the readme`
 
 ### Stage 12, the decoder loop
 
-75. `feat(decoder): sample labelled syndromes from stim`
-76. `feat(jobs): generate the training set as a slurm array`
-77. `feat(decoder): add a recurrent decoder over syndrome rounds`
-78. `feat(decoder): train on one node and record the run`
-79. `feat(decoder): train across nodes with data parallelism`
-80. `feat(decoder): decode a cell with the trained model`
-81. `feat(sweep): choose the decoder per cell`
-82. `feat(jobs): chain generate, train and evaluate as one run`
-83. `feat(decoder): plot both decoders' error rates by distance`
-84. `docs(metrics): record the learned decoder against matching`
+76. `feat(decoder): sample labelled syndromes from stim`
+77. `feat(jobs): generate the training set as a slurm array`
+78. `feat(decoder): add a recurrent decoder over syndrome rounds`
+79. `feat(decoder): train on one node and record the run`
+80. `feat(decoder): train across nodes with data parallelism`
+81. `feat(decoder): decode a cell with the trained model`
+82. `feat(sweep): choose the decoder per cell`
+83. `feat(jobs): chain generate, train and evaluate as one run`
+84. `feat(decoder): plot both decoders' error rates by distance`
+85. `docs(metrics): record the learned decoder against matching`
 
 ### Stage 13, results as a versioned artifact
 
-85. `feat(jobs): record seeds and parent runs`
-86. `feat(results): catalogue every run into one table`
-87. `feat(results): compare two runs with confidence intervals`
-88. `feat(models): promote a decoder by manifest and pull request`
-89. `docs(metrics): record audit coverage of every figure`
-90. `docs: add the loop and the catalogue to the readme`
+86. `feat(jobs): record seeds and parent runs`
+87. `feat(results): catalogue every run into one table`
+88. `feat(results): compare two runs with confidence intervals`
+89. `feat(models): promote a decoder by manifest and pull request`
+90. `docs(metrics): record audit coverage of every figure`
+91. `docs: add readmes for results, models and the root`
 
 ### Stage 14, comparison site
 
-91. `feat(web): scaffold the site with vite and svelte`
-92. `feat(web): query the catalogue in the browser with duckdb`
-93. `feat(web): pick two runs from the catalogue`
-94. `feat(web): compare two runs cell by cell with intervals`
-95. `feat(web): draw error-rate curves for the chosen runs`
-96. `feat(web): show each run's provenance chain`
-97. `feat(web): add dark mode and a keyboard path through it all`
-98. `test(web): drive the comparison end to end in playwright`
-99. `ci(web): check types, tests and bundle size on pull request`
-100. `ci(web): publish the site with its data snapshot on merge`
-101. `docs(metrics): record the site's load, query and size`
-102. `docs: add the comparison site to the readme`
+92. `feat(web): scaffold the site with vite and svelte`
+93. `feat(web): query the catalogue in the browser with duckdb`
+94. `feat(web): pick two runs from the catalogue`
+95. `feat(web): compare two runs cell by cell with intervals`
+96. `feat(web): draw error-rate curves for the chosen runs`
+97. `feat(web): show each run's provenance chain`
+98. `feat(web): add dark mode and a keyboard path through it all`
+99. `test(web): drive the comparison end to end in playwright`
+100. `ci(web): check types, tests and bundle size on pull request`
+101. `ci(web): publish the site with its data snapshot on merge`
+102. `docs(metrics): record the site's load, query and size`
+103. `docs: add the web readme and the site to the root`
 
 ### Stage 15, a shorter loop and a smaller bill
 
-103. `feat(tools): time the loop from commit to first cell`
-104. `perf(sweep): run the grid longest cells first`
-105. `perf(jobs): reuse a pulled image by its digest`
-106. `feat(cluster): bake apptainer and the image into an ami`
-107. `perf(cluster): shorten the sweep queue's idle tail`
-108. `build(image): build the sweep image for arm64 too`
-109. `feat(cluster): add a graviton queue beside the x86 one`
-110. `feat(jobs): run the grid on each type for cells per dollar`
-111. `perf(ci): cache the environment and skip unchanged images`
-112. `feat(tools): plot cost and loop time before and after`
-113. `docs(metrics): record the loop time and cost per sweep after`
-114. `docs: add the optimisation stage to the readme`
+104. `feat(tools): time the loop from commit to first cell`
+105. `perf(sweep): run the grid longest cells first`
+106. `perf(jobs): reuse a pulled image by its digest`
+107. `feat(cluster): bake apptainer and the image into an ami`
+108. `perf(cluster): shorten the sweep queue's idle tail`
+109. `build(image): build the sweep image for arm64 too`
+110. `feat(cluster): add a graviton queue beside the x86 one`
+111. `feat(jobs): run the grid on each type for cells per dollar`
+112. `perf(ci): cache the environment and skip unchanged images`
+113. `feat(tools): plot cost and loop time before and after`
+114. `docs(metrics): record the loop time and cost per sweep after`
+115. `docs: add the optimisation stage to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 

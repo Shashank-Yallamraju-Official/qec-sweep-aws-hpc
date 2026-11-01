@@ -13,7 +13,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 - Every public module, class and function outside tests has a Google-style docstring that says what it is for; ruff enforces it. No comment that restates the code. A comment says why, or it goes.
 - One concern per module. A function fits on one screen.
 - Interfaces are typed and narrow. A dataclass over a dict with known keys.
-- Prose lives in docs/design.md, docs/plan.md and the final README. Nowhere else.
+- Prose lives in docs/design.md, docs/plan.md, the root README and one README per top-level directory. Nowhere else. A directory's README says what it is for, how to run it and where it fits, in a minute's reading; the root README is the map and the write-up. Neither repeats the design.
 - British spelling in prose and messages.
 
 ## Commit messages
