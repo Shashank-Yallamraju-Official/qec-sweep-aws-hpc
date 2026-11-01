@@ -11,6 +11,7 @@ plots look like the real thing without a second of decoding.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import random
@@ -57,7 +58,7 @@ def record(run: str, seed: int, digest: str, parents: list[str]) -> dict[str, ob
 
 def write_sweep(root: Path, run: str, seed: int, factor: float, parents: list[str]) -> None:
     """One sweep run: its record and a cell file per grid point."""
-    digest = f"sha256:{hash((run, factor)) & 0xFFFFFFFFFFFFFFFF:016x}{'0' * 48}"
+    digest = f"sha256:{hashlib.sha256(f'{run}:{factor}'.encode()).hexdigest()}"
     directory = root / "sweeps" / run
     directory.mkdir(parents=True)
     (directory / "run.json").write_text(json.dumps(record(run, seed, digest, parents)))
