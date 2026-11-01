@@ -77,3 +77,14 @@ def test_main_measures_both_runs_and_draws_them(
     assert main(argv, fetch=fetch, price=price) == 0
     assert out.exists()
     assert capsys.readouterr().out.strip().endswith(f"-> {out}")
+
+
+def test_main_makes_the_directory_the_figure_goes_in(tmp_path: Path) -> None:
+    before = write_run(tmp_path, run="20261031T002000Z")
+    after = write_run(tmp_path, run="20261031T003000Z", scaledown_idle_minutes=3)
+    out = tmp_path / "plots" / "loop.png"
+    argv = ["--before", str(tmp_path / before), "--after", str(tmp_path / after)]
+    assert (
+        main([*argv, "--repository", REPOSITORY, "--out", str(out)], fetch=fetch, price=price) == 0
+    )
+    assert out.exists()
