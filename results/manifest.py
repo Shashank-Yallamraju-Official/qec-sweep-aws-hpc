@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass, fields
+from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 import pyarrow as pa
@@ -45,7 +45,7 @@ def read_manifest(path: Path) -> Manifest:
     """
     raw = json.loads(path.read_text())
     known = {f.name for f in fields(Manifest)}
-    required = {f.name for f in fields(Manifest) if f.default is not None}
+    required = {f.name for f in fields(Manifest) if f.default is MISSING}
     if missing := required - raw.keys():
         msg = f"{path} lacks {', '.join(sorted(missing))}"
         raise ValueError(msg)

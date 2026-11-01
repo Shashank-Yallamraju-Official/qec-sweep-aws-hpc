@@ -51,6 +51,15 @@ def test_s3_store_walks_every_page_of_the_listing() -> None:
         assert list(store.keys("sweeps/")) == ["sweeps/a/run.json", "sweeps/b/run.json"]
 
 
+def test_s3_store_reports_a_missing_object_as_a_missing_file() -> None:
+    store, stub = stubbed_s3()
+    stub.add_client_error(
+        "get_object", "NoSuchKey", expected_params={"Bucket": "bucket", "Key": "k"}
+    )
+    with stub, pytest.raises(FileNotFoundError, match="s3://bucket/k"):
+        store.read("k")
+
+
 def test_s3_store_reads_and_writes_objects() -> None:
     store, stub = stubbed_s3()
     stub.add_response("put_object", {}, {"Bucket": "bucket", "Key": "k", "Body": b"data"})

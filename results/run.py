@@ -58,11 +58,19 @@ class RunRecord:
 
 
 NAMED = {f.name for f in fields(RunRecord)}
+REQUIRED = {"run", "queue", "submitted"}
 
 
 def parse_record(key: str, kind: str, text: str) -> RunRecord:
-    """Read a ``run.json`` into a record; a field a thinner record lacks is ``None``."""
+    """Read a ``run.json`` into a record; a field a thinner record lacks is ``None``.
+
+    Raises:
+        ValueError: When the record lacks a field every run writes.
+    """
     raw = json.loads(text)
+    if missing := REQUIRED - raw.keys():
+        msg = f"{key} record lacks {', '.join(sorted(missing))}"
+        raise ValueError(msg)
     finished = raw.get("finished")
     return RunRecord(
         key=key,
