@@ -41,10 +41,12 @@ jobs:
           echo "id=$head" >> "$GITHUB_OUTPUT"
           [[ -n $head ]] || echo "no cluster is running; nothing to update"
       - name: ship the files the cluster fetches from the bucket
-        # Nodes run the configure script from the bucket as they boot, and the
-        # smoke job takes the latest scripts from cluster/jobs.tgz.
+        # Nodes run the configure script from the bucket as they boot, an AMI build
+        # runs the bake script from it, and the smoke job takes the latest scripts
+        # from cluster/jobs.tgz.
         run: |
           aws s3 cp --quiet cluster/on-node-configured.sh "s3://$BUCKET/cluster/on-node-configured.sh"
+          aws s3 cp --quiet cluster/bake-image.sh "s3://$BUCKET/cluster/bake-image.sh"
           tar czf jobs.tgz jobs
           aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs-$GITHUB_SHA.tgz"
           aws s3 cp --quiet jobs.tgz "s3://$BUCKET/cluster/jobs.tgz"

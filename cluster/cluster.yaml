@@ -7,6 +7,10 @@ Tags:
 
 HeadNode:
   InstanceType: t3.medium
+  Image: &x86-image
+    # The image cluster/ami.yaml bakes: Apptainer and the sweep and mpi images
+    # already on the disk, so a node boots straight into Slurm.
+    CustomAmi: ami-0d05ec8d360c519e0
   Networking:
     # us-east-2b is the one zone here that also offers the HPC instance types.
     SubnetId: &subnet subnet-0b765c6a2d2523330
@@ -33,6 +37,7 @@ Scheduling:
     ScaledownIdletime: 10
   SlurmQueues:
     - Name: sweep
+      Image: *x86-image
       ComputeResources:
         - Name: c7a
           InstanceType: c7a.large
@@ -47,6 +52,7 @@ Scheduling:
     # Cells are idempotent and short, so an interruption costs one cell; spot
     # cuts the sweep's bill by roughly two-thirds.
     - Name: sweep-spot
+      Image: *x86-image
       CapacityType: SPOT
       ComputeResources:
         - Name: c7a
@@ -62,6 +68,7 @@ Scheduling:
     # the nodes close, and on demand because one lost rank kills the whole job.
     # hpc6a rather than hpc7a: two fifths of the price for the same scaling question.
     - Name: mpi
+      Image: *x86-image
       ComputeResources:
         - Name: hpc6a
           InstanceType: hpc6a.48xlarge
