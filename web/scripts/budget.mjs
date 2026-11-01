@@ -20,7 +20,8 @@ const compressed = (path) => {
   return { raw: bytes.length, gzip: gzipSync(bytes).length, brotli: brotliCompressSync(bytes).length }
 }
 
-const first = compressed(join(DIST, entry.replace(/^\.?\//, '')))
+// The src carries the deploy's base path; the file itself sits under dist/assets whatever that is.
+const first = compressed(join(DIST, 'assets', entry.split('/').pop()))
 console.log(`first script ${entry}: ${kb(first.raw)} kB, ${kb(first.gzip)} kB gzip, ${kb(first.brotli)} kB brotli`)
 
 const assets = join(DIST, 'assets')
