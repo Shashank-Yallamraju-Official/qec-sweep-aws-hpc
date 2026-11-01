@@ -1,0 +1,57 @@
+name: pages
+
+# A merge to main rebuilds the site over a fresh snapshot of the bucket and publishes it
+# to GitHub Pages. The snapshot is taken on the read-only runner inside the project, the
+# only place the bucket can be read from; the page itself has no credential and no server.
+on:
+  push:
+    branches: [main]
+    paths:
+      - web/**
+      - results/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  BUCKET: qec-sweep-results-523520772490
+
+jobs:
+  snapshot:
+    runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra results
+      - name: snapshot the catalogue and every sweep's cells
+        run: uv run web/scripts/snapshot.py "s3://$BUCKET" web/public/data
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+      - run: npm run budget
+        working-directory: web
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: snapshot
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
