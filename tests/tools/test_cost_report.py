@@ -101,3 +101,26 @@ def test_main_takes_a_zero_rate_as_given(
     path.write_text(json.dumps(record()))
     assert main([str(path), "--on-demand", "0.10", "--spot", "0"]) == 0
     assert "spot: $0.000 running" in capsys.readouterr().out
+
+
+def test_read_run_refuses_a_record_whose_idle_time_is_unknown(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(record(scaledown_idle_minutes=None)))
+    with pytest.raises(ValueError, match="idle"):
+        read_run(path)
+
+
+def test_read_run_refuses_a_cluster_that_never_scales_down(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps(record(scaledown_idle_minutes=-1)))
+    with pytest.raises(ValueError, match="idle"):
+        read_run(path)
+
+
+def test_read_run_names_the_field_an_unfinished_record_lacks(tmp_path: Path) -> None:
+    path = tmp_path / "run.json"
+    unfinished = record()
+    del unfinished["finished"]
+    path.write_text(json.dumps(unfinished))
+    with pytest.raises(ValueError, match="r lacks finished"):
+        read_run(path)

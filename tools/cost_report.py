@@ -59,11 +59,14 @@ def parse_run(record: Mapping[str, Any]) -> Run:
     Raises:
         ValueError: When the record names no node count at all.
     """
+    name = record.get("run", "the record")
+    if missing := {"run", "queue", "instance_type", "submitted", "finished"} - record.keys():
+        msg = f"{name} lacks {', '.join(sorted(missing))}"
+        raise ValueError(msg)
     nodes = record.get("nodes_used") or record.get("nodes")
     if not nodes:
-        msg = f"{record.get('run', 'the record')} has no node count: neither nodes_used nor nodes"
+        msg = f"{name} has no node count: neither nodes_used nor nodes"
         raise ValueError(msg)
-    idle_minutes = record.get("scaledown_idle_minutes")
     return Run(
         run=record["run"],
         queue=record["queue"],
@@ -71,8 +74,18 @@ def parse_run(record: Mapping[str, Any]) -> Run:
         nodes=int(nodes),
         submitted=datetime.fromisoformat(record["submitted"]),
         finished=datetime.fromisoformat(record["finished"]),
-        idle=timedelta(minutes=idle_minutes) if idle_minutes else IDLE_BEFORE_RECORDED,
+        idle=_idle(record),
     )
+
+
+def _idle(record: Mapping[str, Any]) -> timedelta:
+    if "scaledown_idle_minutes" not in record:
+        return IDLE_BEFORE_RECORDED
+    minutes = record["scaledown_idle_minutes"]
+    if not isinstance(minutes, int) or minutes <= 0:
+        msg = f"{record.get('run', 'the record')} has no usable idle time: {minutes!r}"
+        raise ValueError(msg)
+    return timedelta(minutes=minutes)
 
 
 def running_node_hours(run: Run) -> float:
