@@ -1,23 +1,50 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { loadRuns, type Run } from './lib/catalogue'
+  import RunPicker from './lib/RunPicker.svelte'
+  import { assignColours, defaults, fromUrl, toSearch, type Selection } from './lib/selection'
 
   type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; runs: Run[] }
 
-  let state = $state<State>({ kind: 'loading' })
+  let catalogue = $state<State>({ kind: 'loading' })
+  let selection = $state<Selection>({ a: null, b: null })
+  let colours = $state<Map<string, 1 | 2>>(new Map())
+
+  const comparable = $derived(catalogue.kind === 'ready' ? catalogue.runs.filter((run) => run.cells > 0) : [])
+  const runA = $derived(comparable.find((run) => run.key === selection.a) ?? null)
+  const runB = $derived(comparable.find((run) => run.key === selection.b) ?? null)
 
   async function load() {
-    state = { kind: 'loading' }
+    catalogue = { kind: 'loading' }
     try {
-      state = { kind: 'ready', runs: await loadRuns() }
+      const runs = await loadRuns()
+      catalogue = { kind: 'ready', runs }
+      const pickable = runs.filter((run) => run.cells > 0)
+      const named = fromUrl(pickable, window.location.search)
+      choose(named.a || named.b ? named : defaults(pickable), false)
     } catch (error) {
-      state = { kind: 'error', message: error instanceof Error ? error.message : String(error) }
+      catalogue = { kind: 'error', message: error instanceof Error ? error.message : String(error) }
     }
   }
 
-  onMount(load)
+  function choose(next: Selection, push = true) {
+    selection = next
+    colours = assignColours(colours, next)
+    const url = `${window.location.pathname}${toSearch(comparable, next)}`
+    if (push) history.pushState(null, '', url)
+    else history.replaceState(null, '', url)
+  }
 
-  const when = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+  function swap() {
+    choose({ a: selection.b, b: selection.a })
+  }
+
+  onMount(() => {
+    void load()
+    const back = () => choose(fromUrl(comparable, window.location.search), false)
+    window.addEventListener('popstate', back)
+    return () => window.removeEventListener('popstate', back)
+  })
 </script>
 
 <div class="page">
@@ -29,40 +56,45 @@
       that produced it.
     </p>
   </header>
-  <main aria-live="polite" aria-busy={state.kind === 'loading'}>
-    {#if state.kind === 'loading'}
-      <p class="quiet">Loading the catalogue.</p>
-    {:else if state.kind === 'error'}
+  <main aria-busy={catalogue.kind === 'loading'}>
+    {#if catalogue.kind === 'loading'}
+      <p class="quiet" role="status">Loading the catalogue.</p>
+    {:else if catalogue.kind === 'error'}
       <div class="notice" role="alert">
-        <p>The catalogue could not be read: {state.message}</p>
-        <button type="button" onclick={load}>Try again</button>
+        <p>The catalogue could not be read: {catalogue.message}</p>
+        <button type="button" class="button" onclick={load}>Try again</button>
       </div>
-    {:else if state.runs.length === 0}
-      <p class="quiet">The snapshot holds no runs yet. The next merge to main publishes one.</p>
+    {:else if comparable.length === 0}
+      <p class="quiet">The snapshot holds no sweep with cells yet. The next merge to main publishes one.</p>
     {:else}
-      <table>
-        <caption class="visually-hidden">Runs in the catalogue</caption>
-        <thead>
-          <tr>
-            <th scope="col">Run</th>
-            <th scope="col">Kind</th>
-            <th scope="col">Submitted</th>
-            <th scope="col" class="num">Nodes</th>
-            <th scope="col" class="num">Cells</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each state.runs as run (run.key)}
-            <tr>
-              <td class="mono">{run.run}</td>
-              <td>{run.kind}</td>
-              <td>{when.format(run.submitted)} UTC</td>
-              <td class="num">{run.nodesUsed ?? run.nodes ?? ''}</td>
-              <td class="num">{run.cells}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      <section class="pickers" aria-label="Runs to compare">
+        <RunPicker
+          id="run-a"
+          label="Reference"
+          runs={comparable}
+          value={selection.a}
+          exclude={selection.b}
+          colour={selection.a ? (colours.get(selection.a) ?? null) : null}
+          onchange={(key) => choose({ a: key, b: selection.b })}
+        />
+        <button type="button" class="button swap" onclick={swap} disabled={!runA || !runB} aria-label="Swap the two runs">
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h12m0 0-3-3m3 3-3 3M16 13H4m0 0 3-3m-3 3 3 3" />
+          </svg>
+        </button>
+        <RunPicker
+          id="run-b"
+          label="Judged"
+          runs={comparable}
+          value={selection.b}
+          exclude={selection.a}
+          colour={selection.b ? (colours.get(selection.b) ?? null) : null}
+          onchange={(key) => choose({ a: selection.a, b: key })}
+        />
+      </section>
+      {#if !runA || !runB}
+        <p class="quiet">Choose a reference and a run to judge against it.</p>
+      {/if}
     {/if}
   </main>
 </div>
@@ -94,6 +126,8 @@
   }
 
   main {
+    display: grid;
+    gap: 1.5rem;
     padding-top: 1.5rem;
   }
 
@@ -107,39 +141,48 @@
     justify-items: start;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-variant-numeric: tabular-nums;
+  .pickers {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 1rem;
+    align-items: end;
   }
 
-  th,
-  td {
-    padding: 0.5rem 0.75rem 0.5rem 0;
-    text-align: left;
-    border-bottom: 1px solid var(--grid);
+  @media (max-width: 40rem) {
+    .pickers {
+      grid-template-columns: 1fr;
+    }
+
+    .swap {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
   }
 
-  th {
-    font-weight: 500;
-    color: var(--ink-2);
+  .button {
+    min-height: 2.75rem;
+    padding: 0.5rem 0.875rem;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--axis);
+    border-radius: 6px;
+    cursor: pointer;
   }
 
-  .num {
-    text-align: right;
+  .button:hover:not(:disabled) {
+    border-color: var(--ink-3);
   }
 
-  .mono {
-    font-family: var(--mono);
-    font-size: 0.9375em;
+  .button:disabled {
+    color: var(--ink-3);
+    cursor: default;
   }
 
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  .swap {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    padding: 0;
   }
 </style>
