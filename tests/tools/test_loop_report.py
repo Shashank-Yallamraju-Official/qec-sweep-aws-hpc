@@ -94,3 +94,28 @@ def test_main_reports_a_run_with_no_cells(
         cell.unlink()
     assert main([str(tmp_path / key), "--repository", REPOSITORY], fetch=fetch) == 2
     assert "no cells under" in capsys.readouterr().err
+
+
+def test_image_built_at_takes_the_build_that_succeeded() -> None:
+    jobs_url = "https://api.github.com/repos/example/qec/actions/runs/2/jobs"
+    retried = {
+        **GITHUB,
+        jobs_url: {
+            "jobs": [
+                {
+                    "name": "image (sweep)",
+                    "completed_at": "2026-10-31T00:12:00Z",
+                    "conclusion": "failure",
+                },
+                {
+                    "name": "image (sweep)",
+                    "completed_at": "2026-10-31T00:12:52Z",
+                    "conclusion": "success",
+                },
+            ]
+        },
+    }
+    assert image_built_at(retried.__getitem__, REPOSITORY, ImageRef("sweep", SHA)) == BUILT
+    failed = {**retried, jobs_url: {"jobs": retried[jobs_url]["jobs"][:1]}}
+    with pytest.raises(ValueError, match="no image workflow run built"):
+        image_built_at(failed.__getitem__, REPOSITORY, ImageRef("sweep", SHA))
