@@ -4,6 +4,7 @@
   import RunPicker from './lib/RunPicker.svelte'
   import ComparisonView from './lib/Comparison.svelte'
   import Provenance from './lib/Provenance.svelte'
+  import ThemeToggle from './lib/ThemeToggle.svelte'
   import { compareRuns, type Comparison } from './lib/compare'
   import { assignColours, defaults, fromUrl, toSearch, type Selection } from './lib/selection'
 
@@ -80,16 +81,20 @@
   })
 </script>
 
+<a class="skip" href="#comparison">Skip to the comparison</a>
 <div class="page">
   <header class="masthead">
-    <h1>Compare two runs</h1>
+    <div class="title-row">
+      <h1>Compare two runs</h1>
+      <ThemeToggle />
+    </div>
     <p class="standfirst">
       Pick two runs of the decoder sweep. Each cell is judged on its 95% intervals: a difference
       counts only where they do not touch. Every run traces back to the commit, image and jobs
       that produced it.
     </p>
   </header>
-  <main aria-busy={catalogue.kind === 'loading'}>
+  <main id="comparison" tabindex="-1" aria-busy={catalogue.kind === 'loading'}>
     {#if catalogue.kind === 'loading'}
       <p class="quiet" role="status">Loading the catalogue.</p>
     {:else if catalogue.kind === 'error'}
@@ -155,11 +160,39 @@
     padding: clamp(1.5rem, 5vw, 3.5rem) var(--gutter) 4rem;
   }
 
+  .skip {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--axis);
+    border-radius: 6px;
+    transform: translateY(-200%);
+  }
+
+  .skip:focus {
+    transform: none;
+  }
+
   .masthead {
     display: grid;
     gap: 0.75rem;
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--grid);
+  }
+
+  .title-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    align-items: center;
+  }
+
+  main:focus {
+    outline: none;
   }
 
   h1 {
