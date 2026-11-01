@@ -1,0 +1,32 @@
+name: models
+
+# A decoder is promoted by changing models/decoder.json through a pull request.
+# The check follows the candidate manifest to its run in the bucket and judges
+# it, cell by cell, against the decoder in force on the base branch; it refuses
+# a candidate that is worse anywhere with the intervals apart, or that skipped a
+# cell. It reads the bucket from the read-only runner (see infra/deploy.tf).
+on:
+  pull_request:
+    paths:
+      - models/**
+      - .github/workflows/models.yml
+
+jobs:
+  promote:
+    runs-on: codebuild-qec-sweep-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra results
+      - shell: bash
+        run: |
+          against=()
+          if git show "origin/${{ github.base_ref }}:models/decoder.json" > current.json 2>/dev/null; then
+            against=(--against current.json)
+          fi
+          uv run results-promote models/decoder.json "${against[@]}" | tee -a "$GITHUB_STEP_SUMMARY"

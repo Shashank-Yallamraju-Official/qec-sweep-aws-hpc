@@ -30,6 +30,7 @@ statevector = "mpi.cli:main"
 statevector-plot = "mpi.plot:main"
 results-catalogue = "results.catalogue:main"
 results-compare = "results.compare:main"
+results-promote = "results.manifest:main"
 
 [project.optional-dependencies]
 mpi = [
@@ -64,6 +65,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "mpi/plot.py" = ["T201"]
 "results/catalogue.py" = ["T201"]
 "results/compare.py" = ["T201"]
+"results/manifest.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
