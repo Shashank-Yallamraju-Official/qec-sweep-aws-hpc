@@ -1,0 +1,39 @@
+name: web
+
+# The site is checked the way it ships: types, unit tests, a production build held to
+# its first-script budget, and Playwright driving that build over a fixture snapshot.
+# Nothing here touches AWS; the real snapshot is taken on merge (see pages.yml).
+on:
+  pull_request:
+    paths:
+      - web/**
+      - results/**
+      - .github/workflows/web.yml
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: uv sync --extra results
+        working-directory: .
+      - run: npm ci
+      - run: npm run data:fixture
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run budget
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: 1
