@@ -11,16 +11,17 @@ From: python@sha256:8523d6abeb48ceae0b7240d30c5808fc26cb79c1a635bacdf19cf3baecfb
 
 %post
     # Stim and PyMatching publish no Linux arm64 wheel, so on that architecture pip
-    # builds them from their sources; the toolchain goes once they are built, so the
-    # image is the pinned list and nothing more on either architecture.
+    # builds them from their sources (PyMatching's build clones its test framework
+    # with git); the toolchain goes once they are built, so the image is the pinned
+    # list and nothing more on either architecture.
     if [ "$(uname -m)" = aarch64 ]; then
         apt-get update -q >/dev/null
-        apt-get install -y -q --no-install-recommends build-essential cmake >/dev/null
+        apt-get install -y -q --no-install-recommends build-essential cmake git >/dev/null
     fi
     pip install --no-cache-dir --quiet --no-deps -r /opt/sweep/packages.txt
     pip install --no-cache-dir --quiet --no-deps /opt/sweep/*.whl
     if [ "$(uname -m)" = aarch64 ]; then
-        apt-get purge -y -q build-essential cmake >/dev/null
+        apt-get purge -y -q build-essential cmake git >/dev/null
         apt-get autoremove -y -q >/dev/null
         rm -rf /var/lib/apt/lists/*
     fi
