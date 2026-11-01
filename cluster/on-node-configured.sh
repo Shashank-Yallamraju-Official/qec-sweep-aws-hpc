@@ -2,7 +2,8 @@
 # Runs on every node once ParallelCluster has configured it.
 set -euo pipefail
 
-# Jobs run inside the Apptainer image, and the AMI does not ship Apptainer. The
+# Jobs run inside the Apptainer image. A node from the baked AMI (cluster/ami.yaml)
+# already has it and skips this; a node from the stock AMI installs it here. The
 # package is staged in the bucket so a scale-up never waits on GitHub, and it is
 # checked against a pinned digest before anything installs it as root.
 if ! command -v apptainer >/dev/null; then

@@ -1,0 +1,24 @@
+# The node image: the official ParallelCluster Ubuntu 24.04 AMI with Apptainer and
+# the images baked in by cluster/bake-image.sh, so a node spends its boot on Slurm
+# and nothing else. Built by hand, like the cluster, because a build costs money:
+#   pcluster build-image --image-configuration cluster/ami.yaml --image-id qec-x86-64 --region us-east-2
+# The pull request validates this file against the account; the AMI it produces goes
+# into cluster.yaml as CustomAmi, through a pull request of its own.
+Region: us-east-2
+Image:
+  Name: qec-sweep-x86_64
+Build:
+  InstanceType: c7a.large
+  # aws-parallelcluster-3.16.2-ubuntu-2404-lts-hvm-x86_64; its version must match the CLI's.
+  ParentImage: ami-0ccb471752b2dd984
+  # The cluster's public subnet and the default group of its VPC, which lets the
+  # build out to GitHub and the registry and nothing in.
+  SubnetId: subnet-0b765c6a2d2523330
+  SecurityGroupIds:
+    - sg-095885da28723074c
+  Components:
+    - Type: script
+      Value: s3://qec-sweep-results-523520772490/cluster/bake-image.sh
+  Tags:
+    - Key: project
+      Value: qec-sweep

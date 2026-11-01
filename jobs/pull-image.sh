@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Pulls an image once per digest into a cache every node can read, and names the file.
-# usage: pull-image.sh oras://host/repo:tag [cache dir]
+# Finds or pulls an image by digest and names the file every node can read it from.
+# usage: pull-image.sh oras://host/repo:tag [cache dir] [baked dir]
 # prints: <digest> <path to the .sif>
 # A tag can move; a digest cannot. The registry is asked what the tag points at,
-# which is a header, not a download, and the image is only pulled when no file
-# under that digest exists yet. A run then records the digest it actually ran.
+# which is a header, not a download. The image is looked for under that digest
+# where the AMI baked it, then in the cache shared over scratch, and pulled into
+# the cache only when neither has it. A run then records the digest it actually ran.
 set -euo pipefail
-uri=$1 cache=${2:-/scratch/images}
+uri=$1 cache=${2:-/scratch/images} baked=${3:-/opt/images}
 reference=${uri#oras://}
 host=${reference%%/*}
 repository=${reference#*/}
@@ -29,15 +30,17 @@ fi
 digest=$(curl -sS -I -H "$accept" "${auth[@]+"${auth[@]}"}" "$manifest" | header docker-content-digest)
 [[ $digest == sha256:* ]] || { echo "no digest for $uri" >&2; exit 1; }
 
-sif=$cache/${digest#sha256:}.sif
-if [[ ! -f $sif ]]; then
-  mkdir -p "$cache"
-  partial=$(mktemp "$cache/.pull.XXXXXX")
-  trap 'rm -f "$partial"' EXIT
-  # apptainer reports the digest it pulled on stderr; the file is kept only if it
-  # is the one the registry named, since the tag could move between the two calls.
-  pulled=$(apptainer pull --force "$partial" "$uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
-  [[ $pulled == "$digest" ]] || { echo "$uri moved from $digest to $pulled while pulling" >&2; exit 1; }
-  mv -f "$partial" "$sif"
-fi
-echo "$digest $sif"
+file=${digest#sha256:}.sif
+for dir in "$baked" "$cache"; do
+  [[ -f $dir/$file ]] && { echo "$digest $dir/$file"; exit 0; }
+done
+
+mkdir -p "$cache"
+partial=$(mktemp "$cache/.pull.XXXXXX")
+trap 'rm -f "$partial"' EXIT
+# apptainer reports the digest it pulled on stderr; the file is kept only if it
+# is the one the registry named, since the tag could move between the two calls.
+pulled=$(apptainer pull --force "$partial" "$uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
+[[ $pulled == "$digest" ]] || { echo "$uri moved from $digest to $pulled while pulling" >&2; exit 1; }
+mv -f "$partial" "$cache/$file"
+echo "$digest $cache/$file"

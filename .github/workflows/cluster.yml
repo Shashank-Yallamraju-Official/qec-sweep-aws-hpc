@@ -29,6 +29,13 @@ jobs:
             > dryrun.json || true
           jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' dryrun.json
           jq -e '.message == "Request would have succeeded, but DryRun flag is set."' dryrun.json
+      # The AMI build configuration is validated the same way; the build itself is by hand.
+      - run: |
+          uvx --from aws-parallelcluster==3.16.2 pcluster build-image --dryrun true \
+            --image-id "qec-pr-${{ github.event.number }}" \
+            --image-configuration cluster/ami.yaml --region us-east-2 > ami-dryrun.json || true
+          jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' ami-dryrun.json
+          jq -e '.message == "Request would have succeeded, but DryRun flag is set."' ami-dryrun.json
 
   smoke:
     # Proves a running cluster still schedules work. The runner may send one fixed
