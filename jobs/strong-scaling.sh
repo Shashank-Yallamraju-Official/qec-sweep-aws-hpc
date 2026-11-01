@@ -18,7 +18,7 @@ shift 6
 jobs=$(cd "$(dirname "$0")" && pwd)
 run_dir=/scratch/$USER/statevector/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir"
-digest=$(apptainer pull --force "$run_dir/mpi.sif" "$image_uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
+read -r digest sif < <("$jobs/pull-image.sh" "$image_uri")
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
@@ -30,7 +30,7 @@ for nodes in "$@"; do
   # --wait holds until the job ends, so no two runs share nodes or the network.
   job=$(sbatch --wait --parsable --partition "$queue" --nodes "$nodes" --ntasks-per-node "$ranks" \
     --output "$run_dir/nodes$nodes.out" \
-    --export="ALL,IMAGE=$run_dir/mpi.sif,QUBITS=$qubits,LAYERS=$layers,OUT=$run_dir/nodes$nodes.json" \
+    --export="ALL,IMAGE=$sif,QUBITS=$qubits,LAYERS=$layers,OUT=$run_dir/nodes$nodes.json" \
     "$jobs/statevector.sbatch")
   job_ids=$(jq --arg n "$nodes" --argjson id "$job" '. + {($n): $id}' <<<"$job_ids")
   echo "$nodes nodes: $(jq -c .seconds "$run_dir/nodes$nodes.json")"
@@ -43,5 +43,5 @@ jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$imag
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
     ranks_per_node: $ranks, qubits: $qubits, layers: $layers, jobs: $jobs, parents: $parents,
     submitted: $submitted, finished: $finished}' > "$run_dir/run.json"
-aws s3 cp --quiet --recursive --exclude mpi.sif "$run_dir" "$destination/$(basename "$run_dir")/"
+aws s3 cp --quiet --recursive "$run_dir" "$destination/$(basename "$run_dir")/"
 echo "$run_dir"
