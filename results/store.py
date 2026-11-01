@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -61,12 +62,18 @@ class LocalStore:
         path.write_bytes(data)
 
 
+@cache
+def s3_client() -> S3Client:
+    """The one S3 client every store shares; building one loads credentials and models."""
+    return boto3.client("s3")
+
+
 @dataclass(frozen=True)
 class S3Store:
     """One bucket."""
 
     bucket: str
-    client: S3Client = field(default_factory=lambda: boto3.client("s3"), repr=False, compare=False)
+    client: S3Client = field(default_factory=s3_client, repr=False, compare=False)
 
     def uri(self, key: str) -> str:
         """The object's ``s3://`` address."""
@@ -92,9 +99,17 @@ class S3Store:
 
 
 def open_store(uri: str) -> Store:
-    """The store a root names: ``s3://bucket`` or a directory."""
+    """The store a root names: ``s3://bucket`` or a directory.
+
+    Raises:
+        ValueError: For a key after the bucket; a store is a whole bucket.
+    """
     if uri.startswith(S3_SCHEME):
-        return S3Store(uri.removeprefix(S3_SCHEME).split("/", 1)[0])
+        bucket, _, key = uri.removeprefix(S3_SCHEME).partition("/")
+        if key:
+            msg = f"a store is a whole bucket; {uri} names a key in one"
+            raise ValueError(msg)
+        return S3Store(bucket)
     return LocalStore(Path(uri))
 
 
