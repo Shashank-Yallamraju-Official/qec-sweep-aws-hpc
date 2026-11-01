@@ -21,8 +21,9 @@ jobs=$(cd "$(dirname "$0")" && pwd)
 run_dir=/scratch/$USER/sweep/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir/cells" "$run_dir/logs"
 # apptainer reports the registry digest on stderr while pulling; the record keeps it,
-# since a tag can move and a digest cannot.
-digest=$(apptainer pull --force "$run_dir/sweep.sif" "$image_uri" 2>&1 | tee /dev/stderr | sed -n 's/^INFO: *Digest: *//p')
+# since a tag can move and a digest cannot. The log is copied through a process rather
+# than /dev/stderr, which cannot be reopened when a driver running as another user owns it.
+digest=$(apptainer pull --force "$run_dir/sweep.sif" "$image_uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
