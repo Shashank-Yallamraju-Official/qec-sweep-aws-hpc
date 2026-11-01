@@ -11,7 +11,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from results.run import RECORD, parse_record
+from results.run import RECORD, is_cell, read_record
 from results.store import Store, open_store
 
 CATALOGUE = "catalogue/runs.parquet"
@@ -47,24 +47,20 @@ def catalogue(store: Store) -> pa.Table:
     One listing of the store finds them all.
     """
     keys = list(store.keys())
-    rows = []
-    for record_key in (k for k in keys if k.endswith(f"/{RECORD}")):
-        run_key = record_key.removesuffix(f"/{RECORD}")
-        record = parse_record(
-            store.uri(run_key), run_key.split("/", 1)[0], store.read(record_key).decode()
-        )
-        rows.append({**asdict(record), "cells": _cells_beside(keys, run_key)})
+    run_keys = [k.removesuffix(f"/{RECORD}") for k in keys if k.endswith(f"/{RECORD}")]
+    cells = _cells_beside(keys, run_keys)
+    rows = [{**asdict(read_record(store, k)), "cells": cells[k]} for k in run_keys]
     table = pa.Table.from_pylist(rows, schema=SCHEMA)
     return table.sort_by("submitted")
 
 
-def _cells_beside(keys: Sequence[str], run_key: str) -> int:
-    prefix = f"{run_key}/"
-    return sum(
-        1
-        for k in keys
-        if k.startswith(prefix) and k.endswith(".parquet") and "/" not in k.removeprefix(prefix)
-    )
+def _cells_beside(keys: Sequence[str], run_keys: Sequence[str]) -> dict[str, int]:
+    counts = dict.fromkeys(run_keys, 0)
+    for key in keys:
+        run_key = key.rpartition("/")[0]
+        if run_key in counts and is_cell(key, run_key):
+            counts[run_key] += 1
+    return counts
 
 
 def write_catalogue(store: Store, table: pa.Table, key: str = CATALOGUE) -> str:
