@@ -1,6 +1,5 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import type { Plugin } from 'vite'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vite'
 
 // The stylesheet is a kilobyte; inlined, the first paint waits for nothing but the HTML.
 function inlineCss(): Plugin {
@@ -26,6 +25,4 @@ function inlineCss(): Plugin {
 export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
   plugins: [svelte(), inlineCss()],
-  // Unit tests live beside the code; tests/ holds the Playwright specs, which vitest must not collect.
-  test: { include: ['src/**/*.test.ts'] },
 })
