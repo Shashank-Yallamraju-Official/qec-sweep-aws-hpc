@@ -101,6 +101,7 @@ def plot(before: Measured, after: Measured, out: Path) -> None:
     for ax in (loop_ax, cost_ax):
         ax.grid(visible=True, axis="y", alpha=0.3)
     fig.tight_layout()
+    out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
     plt.close(fig)
 
