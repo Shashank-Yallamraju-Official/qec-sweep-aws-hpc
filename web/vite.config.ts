@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig, type Plugin } from 'vite'
 
@@ -25,4 +26,6 @@ function inlineCss(): Plugin {
 export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
   plugins: [svelte(), inlineCss()],
+  // Unit tests live beside the code; tests/ holds the Playwright specs, which vitest must not collect.
+  test: { include: ['src/**/*.test.ts'] },
 })
