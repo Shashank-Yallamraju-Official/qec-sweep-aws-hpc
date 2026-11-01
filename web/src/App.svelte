@@ -154,12 +154,6 @@
 </div>
 
 <style>
-  .page {
-    max-width: var(--measure);
-    margin-inline: auto;
-    padding: clamp(1.5rem, 5vw, 3.5rem) var(--gutter) 4rem;
-  }
-
   .skip {
     position: absolute;
     top: 0.5rem;
@@ -176,45 +170,8 @@
     transform: none;
   }
 
-  .masthead {
-    display: grid;
-    gap: 0.75rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--grid);
-  }
-
-  .title-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.75rem 1.5rem;
-    align-items: center;
-  }
-
   main:focus {
     outline: none;
-  }
-
-  h1 {
-    font-size: clamp(1.75rem, 4vw, 2.5rem);
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-  }
-
-  .standfirst {
-    max-width: 60ch;
-    color: var(--ink-2);
-  }
-
-  main {
-    display: grid;
-    gap: 1.5rem;
-    padding-top: 1.5rem;
-  }
-
-  .quiet {
-    color: var(--ink-3);
   }
 
   .notice {
