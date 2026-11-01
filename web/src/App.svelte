@@ -2,17 +2,49 @@
   import { onMount } from 'svelte'
   import { loadRuns, type Run } from './lib/catalogue'
   import RunPicker from './lib/RunPicker.svelte'
+  import ComparisonView from './lib/Comparison.svelte'
+  import { compareRuns, type Comparison } from './lib/compare'
   import { assignColours, defaults, fromUrl, toSearch, type Selection } from './lib/selection'
 
   type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; runs: Run[] }
+  type Judged = { comparison: Comparison; a: Run; b: Run }
 
   let catalogue = $state<State>({ kind: 'loading' })
   let selection = $state<Selection>({ a: null, b: null })
   let colours = $state<Map<string, 1 | 2>>(new Map())
+  let judged = $state<Judged | null>(null)
+  let judging = $state(false)
+  let judgeError = $state<string | null>(null)
 
   const comparable = $derived(catalogue.kind === 'ready' ? catalogue.runs.filter((run) => run.cells > 0) : [])
   const runA = $derived(comparable.find((run) => run.key === selection.a) ?? null)
   const runB = $derived(comparable.find((run) => run.key === selection.b) ?? null)
+
+  // The previous comparison stays on screen, dimmed, while the next one is queried.
+  $effect(() => {
+    const a = runA
+    const b = runB
+    if (!a || !b) {
+      judged = null
+      return
+    }
+    let current = true
+    judging = true
+    judgeError = null
+    compareRuns(a, b)
+      .then((comparison) => {
+        if (current) judged = { comparison, a, b }
+      })
+      .catch((error: unknown) => {
+        if (current) judgeError = error instanceof Error ? error.message : String(error)
+      })
+      .finally(() => {
+        if (current) judging = false
+      })
+    return () => {
+      current = false
+    }
+  })
 
   async function load() {
     catalogue = { kind: 'loading' }
@@ -94,6 +126,15 @@
       </section>
       {#if !runA || !runB}
         <p class="quiet">Choose a reference and a run to judge against it.</p>
+      {:else if judgeError}
+        <div class="notice" role="alert">
+          <p>The cells could not be read: {judgeError}</p>
+          <button type="button" class="button" onclick={() => choose({ ...selection })}>Try again</button>
+        </div>
+      {:else if judged}
+        <ComparisonView comparison={judged.comparison} a={judged.a} b={judged.b} {colours} stale={judging} />
+      {:else}
+        <p class="quiet" role="status">Joining the two runs cell by cell.</p>
       {/if}
     {/if}
   </main>
