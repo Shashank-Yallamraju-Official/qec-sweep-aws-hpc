@@ -114,7 +114,10 @@ def image_built_at(fetch: Fetch, repository: str, image: ImageRef) -> datetime:
         if run["name"] != IMAGE_WORKFLOW:
             continue
         for job in fetch(run["jobs_url"])["jobs"]:
-            if job["name"] == f"{IMAGE_WORKFLOW} ({image.name})" and job["completed_at"]:
+            if (
+                job["name"] == f"{IMAGE_WORKFLOW} ({image.name})"
+                and job.get("conclusion") == "success"
+            ):
                 return _when(job["completed_at"])
     msg = f"no image workflow run built {image.commit[:7]} into {image.name}"
     raise ValueError(msg)
