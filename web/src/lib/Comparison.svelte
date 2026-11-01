@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Run } from './catalogue'
   import type { Comparison, Verdict } from './compare'
+  import Curves from './Curves.svelte'
   import { count, interval, rate, ratio } from './format'
 
   interface Props {
@@ -45,6 +46,8 @@
   {/if}
 
   {#if comparison.cells.length > 0}
+    <Curves cells={comparison.cells} {a} {b} {colours} />
+
     <div class="controls">
       <label class="toggle">
         <input type="checkbox" bind:checked={apartOnly} disabled={apart === 0} />
