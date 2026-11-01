@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Run } from './catalogue'
-  import type { Comparison, Verdict } from './compare'
+  import type { Comparison } from './compare'
   import Curves from './Curves.svelte'
   import { count, interval, rate, ratio } from './format'
 
@@ -18,8 +18,6 @@
 
   const shown = $derived(apartOnly ? comparison.cells.filter((c) => c.verdict !== 'within') : comparison.cells)
   const apart = $derived(comparison.counts.lower + comparison.counts.higher)
-
-  const label: Record<Verdict, string> = { within: 'within', lower: 'lower', higher: 'higher' }
 
   function headline(): string {
     const total = comparison.cells.length
@@ -98,7 +96,7 @@
                   {:else}
                     <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 6h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
                   {/if}
-                  {label[cell.verdict]}
+                  {cell.verdict}
                 </span>
               </td>
             </tr>

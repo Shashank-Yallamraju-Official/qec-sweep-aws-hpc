@@ -17,6 +17,8 @@
   let judged = $state<Judged | null>(null)
   let judging = $state(false)
   let judgeError = $state<string | null>(null)
+  // Bumped by the try-again button, so the comparison runs again for the same two runs.
+  let attempt = $state(0)
 
   const comparable = $derived(catalogue.kind === 'ready' ? catalogue.runs.filter((run) => run.cells > 0) : [])
   const runA = $derived(comparable.find((run) => run.key === selection.a) ?? null)
@@ -26,6 +28,7 @@
   $effect(() => {
     const a = runA
     const b = runB
+    void attempt
     if (!a || !b) {
       judged = null
       return
@@ -51,11 +54,9 @@
   async function load() {
     catalogue = { kind: 'loading' }
     try {
-      const runs = await loadRuns()
-      catalogue = { kind: 'ready', runs }
-      const pickable = runs.filter((run) => run.cells > 0)
-      const named = fromUrl(pickable, window.location.search)
-      choose(named.a || named.b ? named : defaults(pickable), false)
+      catalogue = { kind: 'ready', runs: await loadRuns() }
+      const named = fromUrl(comparable, window.location.search)
+      choose(named.a || named.b ? named : defaults(comparable), false)
     } catch (error) {
       catalogue = { kind: 'error', message: error instanceof Error ? error.message : String(error) }
     }
@@ -135,7 +136,7 @@
       {:else if judgeError}
         <div class="notice" role="alert">
           <p>The cells could not be read: {judgeError}</p>
-          <button type="button" class="button" onclick={() => choose({ ...selection })}>Try again</button>
+          <button type="button" class="button" onclick={() => (attempt += 1)}>Try again</button>
         </div>
       {:else if judged}
         <ComparisonView comparison={judged.comparison} a={judged.a} b={judged.b} {colours} stale={judging} />
