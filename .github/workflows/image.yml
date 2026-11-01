@@ -52,9 +52,8 @@ jobs:
             echo "since=$(git log -1 --format=%H "$BASE" -- "${inputs[@]}")" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.unchanged.outputs.since != ''
+        # The action's default release; it refuses a version its own list lacks.
         uses: oras-project/setup-oras@v1
-        with:
-          version: 1.3.6
       - if: steps.unchanged.outputs.since != ''
         id: retag
         # Tagging a manifest moves no bytes. A base whose image is missing falls through to a build.
