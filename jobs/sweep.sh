@@ -20,17 +20,16 @@ jobs=$(cd "$(dirname "$0")" && pwd)
 # Keyed by user so two people's runs never contend for one directory.
 run_dir=/scratch/$USER/sweep/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir/cells" "$run_dir/logs"
-# apptainer reports the registry digest on stderr while pulling; the record keeps it,
-# since a tag can move and a digest cannot. The log is copied through a process rather
-# than /dev/stderr, which cannot be reopened when a driver running as another user owns it.
-digest=$(apptainer pull --force "$run_dir/sweep.sif" "$image_uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
+# The image is pulled once per digest into a cache shared by every node; the record
+# keeps the digest, since a tag can move and a digest cannot.
+read -r digest sif < <("$jobs/pull-image.sh" "$image_uri")
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
 config_hash=
 if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
 # The array is exactly as large as the grid inside the image, never a number kept by hand.
-last=$(apptainer exec "$run_dir/sweep.sif" python -c 'from sweep.grid import GRID; print(len(GRID) - 1)')
+last=$(apptainer exec "$sif" python -c 'from sweep.grid import GRID; print(len(GRID) - 1)')
 # A node count pins the run to that many nodes: the rest of the queue is excluded, and
 # concurrency is capped at two tasks per c7a.large so those nodes are full, not spread thin.
 # (--nodelist would do the opposite: it makes every task hold the whole list.)
@@ -44,7 +43,7 @@ if [[ -n $nodes ]]; then
 fi
 submitted=$(date -u +%FT%TZ)
 array=$(sbatch --parsable --partition "$queue" --array="$range" "${pin[@]+"${pin[@]}"}" \
-  --export="ALL,RUN_DIR=$run_dir,SWEEP_IMAGE=$run_dir/sweep.sif,SEED=$seed" \
+  --export="ALL,RUN_DIR=$run_dir,SWEEP_IMAGE=$sif,SEED=$seed" \
   --output "$run_dir/logs/%a.out" "$jobs/sweep.sbatch")
 sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
   --export="ALL,RUN_DIR=$run_dir,DESTINATION=$destination,QUEUE=$queue" \
