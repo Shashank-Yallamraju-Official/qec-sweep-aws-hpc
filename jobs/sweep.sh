@@ -38,18 +38,18 @@ fi
 last=$(apptainer exec "$sif" python -c 'from sweep.grid import GRID; print(len(GRID) - 1)')
 # Every node carries its instance type as a Slurm feature, so a constraint keeps a run on
 # one type where a queue offers several. A node count pins the run to that many nodes of
-# it: the rest are excluded, and concurrency is capped at two tasks per two-vCPU node so
-# those nodes are full, not spread thin. (--nodelist would do the opposite: it makes
-# every task hold the whole list.) ParallelCluster names nodes <queue>-dy-<resource>-N,
-# the resource being the instance family.
+# it: the type's other nodes are excluded by name, and concurrency is capped at two tasks
+# per two-vCPU node so those nodes are full, not spread thin. (--nodelist would do the
+# opposite: it makes every task hold the whole list.)
 range="0-$last"
 pin=()
 if [[ -n $nodes ]]; then
   [[ $nodes =~ ^[1-9][0-9]*$ ]] || { echo "nodes must be a positive integer, not '$nodes'" >&2; exit 2; }
   range="$range%$((nodes * 2))"
-  family=${instance_type%%.*}
-  of_type=$(sinfo -p "$queue" -h -N -o %N | grep -c "^$queue-dy-$family-" || true)
-  (( nodes < of_type )) && pin=(--exclude "$queue-dy-$family-[$((nodes + 1))-$of_type]")
+  of_type=$(sinfo -p "$queue" -h -N -o '%N %f' \
+    | awk -v type="$instance_type" '{ n = split($2, f, ","); for (i = 1; i <= n; i++) if (f[i] == type) { print $1; break } }')
+  surplus=$(tail -n +$((nodes + 1)) <<<"$of_type" | paste -sd, -)
+  [[ -n $surplus ]] && pin=(--exclude "$surplus")
 fi
 submitted=$(date -u +%FT%TZ)
 array=$(sbatch --parsable --partition "$queue" --constraint "$instance_type" --array="$range" "${pin[@]+"${pin[@]}"}" \

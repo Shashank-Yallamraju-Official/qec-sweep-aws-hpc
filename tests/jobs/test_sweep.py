@@ -15,11 +15,14 @@ STUBS = {
     # Job ids count up from 100; every call is logged for the test to read.
     "sbatch": '#!/usr/bin/env bash\necho "sbatch $*" >> "$STUB_LOG"\n'
     'n=$(wc -l < "$STUB_LOG"); echo $((100 + n))\n',
-    # Two kinds of node in the x86 queue, one kind in the Graviton queue.
+    # Two kinds of node in the x86 queue, one in the Graviton queue, each carrying its
+    # instance type as a feature; one resource is not named after its family.
     "sinfo": "#!/usr/bin/env bash\n"
-    "queue=${2:?}; kinds=(c7a c7i); [[ $queue == *arm ]] && kinds=(c8g)\n"
-    'for kind in "${kinds[@]}"; do for i in $(seq 1 16); do echo "$queue-dy-$kind-$i"; done; done\n'
-    "",
+    'queue=${2:?}; kinds=("c7a c7a.large" "c7i-large c7i.large")\n'
+    '[[ $queue == *arm ]] && kinds=("c8g c8g.large")\n'
+    'for kind in "${kinds[@]}"; do set -- $kind\n'
+    '  for i in $(seq 1 16); do echo "$queue-dy-$1-$i dynamic,$2,$1"; done\n'
+    "done\n",
     # The grid inside the image has 200 cells.
     "apptainer": "#!/usr/bin/env bash\necho 199\n",
 }
@@ -97,10 +100,20 @@ def test_a_node_count_fills_that_many_nodes_of_the_chosen_type(jobs: Path) -> No
     assert "--partition sweep-arm" in array
     assert "--constraint c8g.large" in array
     assert "--array=0-199%8" in array
-    assert "--exclude sweep-arm-dy-c8g-[5-16]" in array
+    surplus = ",".join(f"sweep-arm-dy-c8g-{i}" for i in range(5, QUEUE_SIZE + 1))
+    assert f"--exclude {surplus}" in array
     assert record(jobs)["instance_type"] == "c8g.large"
     assert record(jobs)["nodes"] == 4
     assert record(jobs)["queue"] == "sweep-arm"
+
+
+def test_nodes_are_chosen_by_their_type_feature_not_their_name(jobs: Path) -> None:
+    result = sweep(jobs, "-t", "c7i.large", where=("sweep", "2"))
+    assert result.returncode == 0, result.stderr
+    array = submissions(jobs)[0]
+    surplus = ",".join(f"sweep-dy-c7i-large-{i}" for i in range(3, QUEUE_SIZE + 1))
+    assert f"--exclude {surplus}" in array
+    assert "c7a" not in array.split("--exclude")[1]
 
 
 def test_a_run_on_every_node_of_a_type_excludes_none(jobs: Path) -> None:
