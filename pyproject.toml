@@ -66,6 +66,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "results/catalogue.py" = ["T201"]
 "results/compare.py" = ["T201"]
 "results/manifest.py" = ["T201"]
+"web/scripts/*.py" = ["T201", "INP001"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -81,7 +82,7 @@ max-statements = 30
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["sweep", "mpi", "results", "tools", "infra", "tests"]
+files = ["sweep", "mpi", "results", "tools", "infra", "tests", "web/scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
