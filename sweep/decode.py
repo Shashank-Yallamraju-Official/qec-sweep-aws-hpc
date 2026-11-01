@@ -75,12 +75,27 @@ def wilson_interval(errors: int, shots: int, z: float = Z_95) -> tuple[float, fl
     return low, high
 
 
+def memory_circuit(cell: Cell) -> stim.Circuit:
+    """Stim's rotated memory-Z surface code for a cell.
+
+    As many rounds as the distance, circuit-level depolarising noise at the cell's
+    rate on every channel.
+    """
+    return stim.Circuit.generated(
+        "surface_code:rotated_memory_z",
+        distance=cell.distance,
+        rounds=cell.distance,
+        after_clifford_depolarization=cell.noise,
+        before_round_data_depolarization=cell.noise,
+        before_measure_flip_probability=cell.noise,
+        after_reset_flip_probability=cell.noise,
+    )
+
+
 def decode(cell: Cell, seed: int = 0) -> CellResult:
     """Sample a cell's syndromes with Stim and decode them with PyMatching.
 
-    The circuit is Stim's rotated memory-Z surface code with as many rounds as
-    the distance and the cell's noise rate on every channel. Samples are kept
-    bit-packed so a large cell stays under a byte per detector-shot.
+    Samples are kept bit-packed so a large cell stays under a byte per detector-shot.
 
     Args:
         cell: What to simulate.
@@ -91,15 +106,7 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
     """
     started = datetime.now(UTC)
     start = time.perf_counter()
-    circuit = stim.Circuit.generated(
-        "surface_code:rotated_memory_z",
-        distance=cell.distance,
-        rounds=cell.distance,
-        after_clifford_depolarization=cell.noise,
-        before_round_data_depolarization=cell.noise,
-        before_measure_flip_probability=cell.noise,
-        after_reset_flip_probability=cell.noise,
-    )
+    circuit = memory_circuit(cell)
     syndromes, observables = circuit.compile_detector_sampler(seed=seed).sample(
         cell.shots, separate_observables=True, bit_packed=True
     )
