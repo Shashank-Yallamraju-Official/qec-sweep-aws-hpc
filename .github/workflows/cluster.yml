@@ -29,13 +29,24 @@ jobs:
             > dryrun.json || true
           jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' dryrun.json
           jq -e '.message == "Request would have succeeded, but DryRun flag is set."' dryrun.json
-      # The AMI build configuration is validated the same way; the build itself is by hand.
+      # The Graviton cluster and the two AMI build configurations are validated the
+      # same way; the builds themselves are by hand.
       - run: |
-          uvx --from aws-parallelcluster==3.16.2 pcluster build-image --dryrun true \
-            --image-id "qec-pr-${{ github.event.number }}" \
-            --image-configuration cluster/ami.yaml --region us-east-2 > ami-dryrun.json || true
-          jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' ami-dryrun.json
-          jq -e '.message == "Request would have succeeded, but DryRun flag is set."' ami-dryrun.json
+          uvx --from aws-parallelcluster==3.16.2 pcluster create-cluster --dryrun true \
+            --cluster-name "qec-arm-pr-${{ github.event.number }}" \
+            --cluster-configuration cluster/graviton.yaml --region us-east-2 \
+            --suppress-validators type:HeadNodeLaunchTemplateValidator type:ComputeResourceLaunchTemplateValidator \
+            > graviton.json || true
+          jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' graviton.json
+          jq -e '.message == "Request would have succeeded, but DryRun flag is set."' graviton.json
+      - run: |
+          for config in ami ami-arm64; do
+            uvx --from aws-parallelcluster==3.16.2 pcluster build-image --dryrun true \
+              --image-id "qec-pr-${{ github.event.number }}-$config" \
+              --image-configuration "cluster/$config.yaml" --region us-east-2 > "$config.json" || true
+            jq -r '.validationMessages[]? | "\(.level) \(.type): \(.message)"' "$config.json"
+            jq -e '.message == "Request would have succeeded, but DryRun flag is set."' "$config.json"
+          done
 
   smoke:
     # Proves a running cluster still schedules work. The runner may send one fixed
