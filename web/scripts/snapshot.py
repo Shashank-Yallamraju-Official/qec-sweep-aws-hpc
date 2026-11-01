@@ -11,13 +11,17 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 import pyarrow.parquet as pq
 
 from results.catalogue import catalogue
 from results.run import read_cells
 from results.store import Store, open_store
+
+WORKERS = 8
 
 
 def snapshot(store: Store, out: Path) -> tuple[int, int]:
@@ -33,14 +37,21 @@ def snapshot(store: Store, out: Path) -> tuple[int, int]:
     runs = catalogue(store)
     (out / "cells").mkdir(parents=True, exist_ok=True)
     pq.write_table(runs, out / "runs.parquet")
-    written = 0
-    for row in runs.to_pylist():
-        if row["kind"] != "sweeps" or row["cells"] == 0:
-            continue
-        cells = read_cells(store, f"{row['kind']}/{row['run']}")
+    with_cells = [r for r in runs.to_pylist() if r["cells"] > 0]
+
+    def write(row: dict[str, Any]) -> None:
+        cells = read_cells(store, key_within(store, row["key"]))
         pq.write_table(cells, out / "cells" / f"{row['run']}.parquet")
-        written += 1
-    return runs.num_rows, written
+
+    # A run is a few hundred small objects; the runs are fetched side by side.
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        list(pool.map(write, with_cells))
+    return runs.num_rows, len(with_cells)
+
+
+def key_within(store: Store, address: str) -> str:
+    """A run's key inside the store, from the full address the catalogue gives it."""
+    return address.removeprefix(store.uri("")).lstrip("/")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
