@@ -18,7 +18,7 @@ shift 6
 jobs=$(cd "$(dirname "$0")" && pwd)
 run_dir=/scratch/$USER/statevector/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir"
-digest=$(apptainer pull --force "$run_dir/mpi.sif" "$image_uri" 2>&1 | tee /dev/stderr | sed -n 's/^INFO: *Digest: *//p')
+digest=$(apptainer pull --force "$run_dir/mpi.sif" "$image_uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
