@@ -38,11 +38,13 @@ jobs:
           echo "name=ghcr.io/$repository/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
       - id: unchanged
         # An image is rebuilt only when what goes into it, this recipe included, changed
-        # since a pull request's base or the commit before this one on main. Otherwise
-        # the image of the last commit that changed those inputs, which this workflow
-        # built, is given this commit's tag as well.
+        # since the previous push: a pull request's earlier head, or its base when it is
+        # opened, or the commit before this one on main. Otherwise the image of the last
+        # commit that changed those inputs, which this workflow built, is given this
+        # commit's tag as well. A pull request's path filter sees the whole branch, so
+        # without this every push to one would rebuild every image.
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: |
           inputs=(image/${{ matrix.definition }}.def image/${{ matrix.packages }} sweep mpi results pyproject.toml
             .github/workflows/image.yml)
