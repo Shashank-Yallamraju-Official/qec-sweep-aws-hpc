@@ -26,8 +26,12 @@ read -r digest sif < <("$jobs/pull-image.sh" "$image_uri")
 # The deploy workflow installs the scripts with the commit they came from beside them.
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=/opt/parallelcluster/shared/cluster-config.yaml
-config_hash=
-if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
+config_hash='' idle=''
+if [[ -f $config ]]; then
+  config_hash=$(sha256sum "$config" | cut -c1-64)
+  # The idle tail the nodes will be billed for is a cluster setting, so the record keeps it.
+  idle=$(sed -n 's/^ *ScaledownIdletime: *//p' "$config" | head -1)
+fi
 # The array is exactly as large as the grid inside the image, never a number kept by hand.
 last=$(apptainer exec "$sif" python -c 'from sweep.grid import GRID; print(len(GRID) - 1)')
 # A node count pins the run to that many nodes: the rest of the queue is excluded, and
@@ -51,12 +55,13 @@ sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
 # Written after both submissions so the record can name them; the sync job that
 # closes it cannot start before the array ends.
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg nodes "$nodes" --arg image "$image_uri" \
-  --arg digest "$digest" --arg commit "$commit" --arg config_hash "$config_hash" --arg submitted "$submitted" \
-  --arg array "$array" --arg sync "$sync" --argjson seed "$seed" --argjson parents "$parents" \
+  --arg digest "$digest" --arg commit "$commit" --arg config_hash "$config_hash" --arg idle "$idle" \
+  --arg submitted "$submitted" --arg array "$array" --arg sync "$sync" --argjson seed "$seed" --argjson parents "$parents" \
   '{run: $run, queue: $queue, nodes: ($nodes | if . == "" then null else tonumber end),
     instance_type: "c7a.large", image: $image, image_digest: ($digest | if . == "" then null else . end),
     commit: ($commit | if . == "" then null else . end),
     cluster_config_sha256: ($config_hash | if . == "" then null else . end),
+    scaledown_idle_minutes: ($idle | if . == "" then null else tonumber end),
     jobs: {array: ($array | tonumber? // .), sync: ($sync | tonumber? // .)},
     seed: $seed, parents: $parents, submitted: $submitted}' > "$run_dir/run.json"
 echo "$run_dir array=$array sync=$sync"
