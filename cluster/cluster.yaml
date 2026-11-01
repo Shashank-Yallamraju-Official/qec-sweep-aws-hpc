@@ -46,6 +46,12 @@ Scheduling:
           MinCount: 0
           # Sixteen two-vCPU nodes plus the head node fit the raised 64-vCPU quota.
           MaxCount: 16
+        # A second x86 type beside the first, for cells per dollar. Every node carries
+        # its instance type as a Slurm feature, so a run pins one with a constraint.
+        - Name: c7i
+          InstanceType: c7i.large
+          MinCount: 0
+          MaxCount: 16
       Networking:
         SubnetIds:
           - *subnet

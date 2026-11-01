@@ -1,0 +1,51 @@
+# The Graviton cluster: the sweep queue on c8g beside the x86 cluster, for cells per
+# dollar by instance type. A second cluster rather than a second queue because
+# ParallelCluster holds every queue to the head node's architecture. Created and
+# deleted by hand around its runs like the other, and sharing nothing but the bucket:
+#   pcluster create-cluster --cluster-name qec-arm --cluster-configuration cluster/graviton.yaml --region us-east-2
+Region: us-east-2
+Image:
+  Os: ubuntu2404
+Tags:
+  - Key: project
+    Value: qec-sweep
+
+HeadNode:
+  InstanceType: t4g.medium
+  Networking:
+    SubnetId: &subnet subnet-0b765c6a2d2523330
+  Iam: &node-iam
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-results
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+    S3Access:
+      - BucketName: qec-sweep-results-523520772490
+        KeyName: cluster/*
+  CustomActions: &configure
+    OnNodeConfigured:
+      # The same script as the x86 cluster; it installs Apptainer from the PPA on arm64.
+      Script: s3://qec-sweep-results-523520772490/cluster/on-node-configured.sh
+
+Scheduling:
+  Scheduler: slurm
+  SlurmSettings:
+    ScaledownIdletime: 3
+  SlurmQueues:
+    - Name: sweep
+      ComputeResources:
+        - Name: c8g
+          InstanceType: c8g.large
+          MinCount: 0
+          MaxCount: 16
+      Networking:
+        SubnetIds:
+          - *subnet
+      Iam: *node-iam
+      CustomActions: *configure
+
+SharedStorage:
+  - Name: scratch
+    StorageType: Efs
+    MountDir: /scratch
+    EfsSettings:
+      DeletionPolicy: Delete

@@ -1,0 +1,19 @@
+# The Graviton node image: as cluster/ami.yaml, from the arm64 parent, built on a
+# c8g node. The bake script tells the architectures apart itself.
+#   pcluster build-image --image-configuration cluster/ami-arm64.yaml --image-id qec-arm64 --region us-east-2
+Region: us-east-2
+Image:
+  Name: qec-sweep-arm64
+Build:
+  InstanceType: c8g.large
+  # aws-parallelcluster-3.16.2-ubuntu-2404-lts-hvm-arm64; its version must match the CLI's.
+  ParentImage: ami-0e8b425d7a540f581
+  SubnetId: subnet-0b765c6a2d2523330
+  SecurityGroupIds:
+    - sg-095885da28723074c
+  Components:
+    - Type: script
+      Value: s3://qec-sweep-results-523520772490/cluster/bake-image.sh
+  Tags:
+    - Key: project
+      Value: qec-sweep
