@@ -19,7 +19,20 @@
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- The shell is painted from the HTML alone; the application replaces it with the same markup. -->
+    <div id="app">
+      <div class="page">
+        <header class="masthead">
+          <div class="title-row"><h1>Compare two runs</h1></div>
+          <p class="standfirst">
+            Pick two runs of the decoder sweep. Each cell is judged on its 95% intervals: a difference
+            counts only where they do not touch. Every run traces back to the commit, image and jobs
+            that produced it.
+          </p>
+        </header>
+        <main><p class="quiet">Loading the catalogue.</p></main>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
