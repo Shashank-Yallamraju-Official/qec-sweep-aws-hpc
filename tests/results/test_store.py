@@ -70,6 +70,15 @@ def test_open_store_tells_a_bucket_from_a_directory(tmp_path: Path) -> None:
     assert open_store(str(tmp_path)) == LocalStore(tmp_path)
 
 
+def test_open_store_refuses_a_key_after_the_bucket() -> None:
+    with pytest.raises(ValueError, match="whole bucket"):
+        open_store("s3://bucket/sweeps")
+
+
+def test_every_s3_store_shares_one_client() -> None:
+    assert S3Store("a").client is S3Store("b").client
+
+
 @pytest.mark.parametrize(
     ("uri", "key"),
     [("s3://bucket/sweeps/x", "sweeps/x"), ("s3://bucket/sweeps/x/", "sweeps/x")],
