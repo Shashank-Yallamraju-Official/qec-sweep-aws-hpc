@@ -1,9 +1,23 @@
-import json
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from results.run import read_cells, read_record
+from results.store import LocalStore
+from tests.tools.conftest import (
+    BUILT,
+    COMMITTED,
+    FIRST,
+    GITHUB,
+    IMAGE,
+    REPOSITORY,
+    SHA,
+    SUBMITTED,
+    fetch,
+    write_run,
+)
 from tools.loop_report import (
     ImageRef,
     Loop,
@@ -14,77 +28,6 @@ from tools.loop_report import (
     report,
     time_loop,
 )
-
-from results.run import read_cells, read_record
-from results.store import LocalStore
-from sweep.cell import Cell
-from sweep.decode import CellResult
-from sweep.parquet import write
-
-REPOSITORY = "example/qec"
-SHA = "0d0eebc668dbcbf66e3eea1245a8d9937afc5af8"
-IMAGE = f"oras://ghcr.io/example/qec/sweep:{SHA}"
-COMMITTED = datetime(2026, 10, 31, 0, 11, 35, tzinfo=UTC)
-BUILT = datetime(2026, 10, 31, 0, 12, 52, tzinfo=UTC)
-SUBMITTED = datetime(2026, 10, 31, 0, 20, 0, tzinfo=UTC)
-FIRST = datetime(2026, 10, 31, 0, 25, 0, tzinfo=UTC)
-
-GITHUB: dict[str, Any] = {
-    f"repos/{REPOSITORY}/commits/{SHA}": {
-        "commit": {"committer": {"date": "2026-10-31T00:11:35Z"}}
-    },
-    f"repos/{REPOSITORY}/actions/runs?head_sha={SHA}&per_page=100": {
-        "workflow_runs": [
-            {
-                "name": "ci",
-                "jobs_url": "https://api.github.com/repos/example/qec/actions/runs/1/jobs",
-            },
-            {
-                "name": "image",
-                "jobs_url": "https://api.github.com/repos/example/qec/actions/runs/2/jobs",
-            },
-        ]
-    },
-    "https://api.github.com/repos/example/qec/actions/runs/2/jobs": {
-        "jobs": [
-            {"name": "image (mpi)", "completed_at": "2026-10-31T00:15:42Z"},
-            {"name": "image (sweep)", "completed_at": "2026-10-31T00:12:52Z"},
-        ]
-    },
-}
-
-
-def fetch(path: str) -> Any:  # noqa: ANN401
-    return GITHUB[path]
-
-
-def write_run(root: Path) -> str:
-    run = root / "sweeps/20261031T002000Z"
-    run.mkdir(parents=True)
-    record = {
-        "run": "20261031T002000Z",
-        "queue": "sweep",
-        "image": IMAGE,
-        "submitted": "2026-10-31T00:20:00Z",
-        "finished": "2026-10-31T00:26:00Z",
-    }
-    (run / "run.json").write_text(json.dumps(record))
-    for distance, started in (
-        (3, FIRST + timedelta(seconds=30)),
-        (5, FIRST),
-        (7, FIRST + timedelta(minutes=1)),
-    ):
-        result = CellResult(
-            cell=Cell(distance, 0.01, 1000),
-            errors=1,
-            seconds=1.0,
-            seed=0,
-            started=started,
-            host="n",
-        )
-        write(result, run)
-    return "sweeps/20261031T002000Z"
-
 
 LOOP = Loop(
     run="20261031T002000Z",
