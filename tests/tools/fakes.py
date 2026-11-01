@@ -1,3 +1,5 @@
+"""Fakes shared by the loop tests: a GitHub that answers from a dict, and a run writer."""
+
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -33,8 +35,16 @@ GITHUB: dict[str, Any] = {
     },
     "https://api.github.com/repos/example/qec/actions/runs/2/jobs": {
         "jobs": [
-            {"name": "image (mpi)", "completed_at": "2026-10-31T00:15:42Z"},
-            {"name": "image (sweep)", "completed_at": "2026-10-31T00:12:52Z"},
+            {
+                "name": "image (mpi)",
+                "completed_at": "2026-10-31T00:15:42Z",
+                "conclusion": "success",
+            },
+            {
+                "name": "image (sweep)",
+                "completed_at": "2026-10-31T00:12:52Z",
+                "conclusion": "success",
+            },
         ]
     },
 }
