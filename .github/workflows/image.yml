@@ -13,10 +13,17 @@ permissions:
 
 jobs:
   image:
+    # The sweep image is built for both architectures the cluster runs, each on a
+    # runner of its own kind, from one definition: the pinned Python base is a
+    # multi-architecture index and every pinned package ships both wheels.
     strategy:
       matrix:
-        image: [sweep, mpi]
-    runs-on: ubuntu-latest
+        include:
+          - {name: sweep, definition: sweep, runs-on: ubuntu-latest}
+          - {name: mpi, definition: mpi, runs-on: ubuntu-latest}
+          - {name: sweep-arm64, definition: sweep, runs-on: ubuntu-24.04-arm}
+    name: image (${{ matrix.name }})
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,18 +31,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: astral-sh/setup-uv@v6
       - run: uv sync && uv build --wheel
-      - uses: eWaterCycle/setup-apptainer@v2
-        with:
-          apptainer-version: 1.4.1
-      - run: sudo apptainer build image.sif image/${{ matrix.image }}.def && sudo chown "$USER" image.sif
+      # Apptainer's own releases carry no arm64 package; its PPA builds for both.
+      - run: |
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get install -y --no-install-recommends apptainer
+      - run: sudo apptainer build image.sif image/${{ matrix.definition }}.def && sudo chown "$USER" image.sif
       - env:
-          IMAGE: ${{ matrix.image }}
+          IMAGE: ${{ matrix.definition }}
         run: env "$(echo "$IMAGE" | tr '[:lower:]' '[:upper:]')_IMAGE=$PWD/image.sif" uv run pytest tests/image
       - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.image }}"
+          name="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.name }}"
           echo "$TOKEN" | apptainer registry login -u '${{ github.actor }}' --password-stdin oras://ghcr.io
           apptainer push image.sif "oras://$name:${{ github.event.pull_request.head.sha || github.sha }}"
           if [ '${{ github.ref }}' = refs/heads/main ]; then
