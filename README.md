@@ -14,6 +14,7 @@ A change to the cluster, the jobs or the code travels through a pull request. On
 | [`mpi/`](mpi/) | A state-vector simulator sharded across MPI ranks, for the tightly coupled runs |
 | [`results/`](results/README.md) | The catalogue over every run's record, the comparison of two runs, and the check that admits a decoder manifest |
 | [`models/`](models/README.md) | The decoder in force, as a manifest changed by pull request |
+| [`web/`](web/README.md) | The comparison site: pick two runs, judge them cell by cell with intervals, trace each to its record; published to GitHub Pages on every merge |
 | [`jobs/`](jobs/) | The Slurm scripts that submit a sweep or a scaling run and write its record |
 | [`cluster/`](cluster/) | The ParallelCluster configuration and the script each node runs as it boots |
 | [`image/`](image/) | The Apptainer definitions CI builds into the images the jobs pull |
