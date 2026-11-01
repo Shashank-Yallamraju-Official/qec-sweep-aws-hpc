@@ -2,6 +2,7 @@
   import type { Run } from './catalogue'
   import type { CellComparison } from './compare'
   import type { Ink, Series } from './curves'
+  import { onThemeChange } from './theme'
 
   interface Props {
     cells: CellComparison[]
@@ -16,6 +17,10 @@
   let width = $state(0)
   let failed = $state(false)
   let module = $state<typeof import('./curves') | null>(null)
+  let palette = $state(0)
+
+  // Dark and light are different ink; the figure is redrawn when the theme changes.
+  $effect(() => onThemeChange(() => (palette += 1)))
 
   // The chart library arrives after the table has painted; the table stands alone until then.
   $effect(() => {
@@ -43,6 +48,7 @@
 
   $effect(() => {
     if (!host || !module || width === 0) return
+    void palette
     const ink: Ink = {
       text: token('--ink-2'),
       muted: token('--ink-3'),
