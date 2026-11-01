@@ -70,6 +70,7 @@ def test_time_loop_splits_the_loop_into_its_phases(tmp_path: Path) -> None:
     assert loop.wait == timedelta(minutes=7, seconds=8)
     assert loop.cluster == timedelta(minutes=5)
     assert loop.total == timedelta(minutes=13, seconds=25)
+    assert loop.platform == timedelta(minutes=6, seconds=17)
 
 
 def test_report_prints_each_phase_in_minutes() -> None:
