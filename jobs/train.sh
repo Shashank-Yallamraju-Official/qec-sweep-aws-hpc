@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Submits one training job on a generate run's samples, and a sync job that runs when it is done.
 # usage: train.sh [-s seed] [-p parent-run]... [-e epochs] [-l learning rate] [-d device] <image uri> s3://bucket/prefix <samples dir> [queue]
+# The image is the training one, oras://ghcr.io/<owner>/<repo>/train:<commit>, which carries torch.
 # The job takes a whole node of the queue, by default the train queue. The record names
 # what an audit walks back to: the image's digest, the cluster configuration, the job
 # ids, the seed, the generate run the samples came from as the parent, and the settings.
