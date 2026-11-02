@@ -3,9 +3,25 @@ name: image
 on:
   push:
     branches: [main]
-    paths: [image/**, sweep/**, mpi/**, results/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
+    paths:
+      - image/**
+      - sweep/**
+      - mpi/**
+      - results/**
+      - decoder/**
+      - tests/image/**
+      - pyproject.toml
+      - .github/workflows/image.yml
   pull_request:
-    paths: [image/**, sweep/**, mpi/**, results/**, tests/image/**, pyproject.toml, .github/workflows/image.yml]
+    paths:
+      - image/**
+      - sweep/**
+      - mpi/**
+      - results/**
+      - decoder/**
+      - tests/image/**
+      - pyproject.toml
+      - .github/workflows/image.yml
 
 permissions:
   contents: read
@@ -22,6 +38,7 @@ jobs:
           - {name: sweep, definition: sweep, packages: packages.txt, runs-on: ubuntu-latest}
           - {name: mpi, definition: mpi, packages: mpi-packages.txt, runs-on: ubuntu-latest}
           - {name: sweep-arm64, definition: sweep, packages: packages.txt, runs-on: ubuntu-24.04-arm}
+          - {name: train, definition: train, packages: train-packages.txt, runs-on: ubuntu-latest}
     name: image (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
     env:
@@ -46,8 +63,8 @@ jobs:
         env:
           BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: |
-          inputs=(image/${{ matrix.definition }}.def image/${{ matrix.packages }} sweep mpi results pyproject.toml
-            .github/workflows/image.yml)
+          inputs=(image/${{ matrix.definition }}.def image/${{ matrix.packages }}
+            sweep mpi results decoder pyproject.toml .github/workflows/image.yml)
           if git cat-file -e "$BASE^{commit}" 2>/dev/null && git diff --quiet "$BASE" "$SHA" -- "${inputs[@]}"; then
             echo "since=$(git log -1 --format=%H "$BASE" -- "${inputs[@]}")" >> "$GITHUB_OUTPUT"
           fi
