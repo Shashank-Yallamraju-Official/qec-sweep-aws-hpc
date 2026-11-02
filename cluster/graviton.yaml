@@ -6,6 +6,9 @@
 Region: us-east-2
 Image:
   Os: ubuntu2404
+  # The image cluster/ami-arm64.yaml bakes, for the head node and the queue alike:
+  # Apptainer from its PPA and the arm64 sweep image already on the disk.
+  CustomAmi: ami-05c4a41720368983c
 Tags:
   - Key: project
     Value: qec-sweep
