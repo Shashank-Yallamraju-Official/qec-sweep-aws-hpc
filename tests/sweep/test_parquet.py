@@ -48,6 +48,7 @@ def test_columns_are_flat_and_named(tmp_path: Path) -> None:
         "finished",
         "host",
         "decoder",
+        "noise_model",
     ]
 
 
@@ -68,8 +69,9 @@ def test_a_result_names_its_decoder_and_matching_is_the_default(tmp_path: Path) 
 def test_a_file_from_before_the_decoder_column_reads_as_matching(tmp_path: Path) -> None:
     path = write(RESULT, tmp_path)
     table = pq.read_table(path)
-    pq.write_table(table.drop_columns(["decoder"]), path)
+    pq.write_table(table.drop_columns(["decoder", "noise_model"]), path)
     assert read(path).decoder == "pymatching"
+    assert read(path).noise_model == "depolarising"
 
 
 def test_finished_is_the_start_plus_the_seconds_in_utc(tmp_path: Path) -> None:

@@ -17,7 +17,7 @@ from torch import Tensor, nn
 
 from decoder.sample import layout
 from sweep.cell import Cell
-from sweep.decode import memory_circuit
+from sweep.noise import memory_circuit
 
 HIDDEN = 64
 LAYERS = 2

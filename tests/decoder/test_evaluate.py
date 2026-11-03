@@ -10,7 +10,9 @@ from decoder.model import load  # noqa: E402
 from decoder.sample import sample, write  # noqa: E402
 from decoder.train import train  # noqa: E402
 from sweep.cell import Cell  # noqa: E402
+from sweep.cli import main  # noqa: E402
 from sweep.decode import CellResult  # noqa: E402
+from sweep.parquet import read  # noqa: E402
 
 CELL = Cell(distance=3, noise=0.05, shots=200)
 
@@ -54,3 +56,14 @@ def test_decode_under_correlated_noise_samples_that_model(model: Path) -> None:
 def test_decode_refuses_a_model_of_another_distance(model: Path) -> None:
     with pytest.raises(ValueError, match="distance"):
         decode(Cell(distance=5, noise=0.05, shots=10), model)
+
+
+def test_the_sweep_command_decodes_a_cell_with_the_model(model: Path, tmp_path: Path) -> None:
+    argv = ["--d", "3", "--p", "0.05", "--shots", "200", "--seed", "9", "--out", str(tmp_path)]
+    assert (
+        main([*argv, "--decoder", "learned", "--model", str(model), "--noise", "correlated"]) == 0
+    )
+    result = read(tmp_path / "d3_p0.05_s200.parquet")
+    assert result.decoder == "learned"
+    assert result.noise_model == "correlated"
+    assert result.errors == decode(CELL, model, seed=9, noise="correlated").errors

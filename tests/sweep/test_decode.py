@@ -80,3 +80,12 @@ def test_decode_uses_less_than_a_byte_per_detector_shot() -> None:
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     assert peak < cell.shots * detectors
+
+
+def test_decode_under_correlated_noise_records_the_model_and_differs() -> None:
+    cell = Cell(distance=3, noise=0.01, shots=2000)
+    plain = decode(cell, seed=2)
+    correlated = decode(cell, seed=2, noise="correlated")
+    assert plain.noise_model == "depolarising"
+    assert correlated.noise_model == "correlated"
+    assert correlated.errors != plain.errors
