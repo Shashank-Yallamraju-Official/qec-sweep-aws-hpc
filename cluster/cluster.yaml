@@ -44,11 +44,14 @@ LoginNodes:
       Networking:
         SubnetIds:
           - *subnet
-      # The port stays open to the world as ParallelCluster warns: a session is reached
-      # only through a one-time token that lives thirty seconds. No GPU, since the
-      # account has no GPU quota; DCV renders ParaView in software, enough to prove it.
+      # The port is closed to the internet: a desktop is reached through Session
+      # Manager port forwarding to localhost, by cluster/dcv-session.sh, with a
+      # certificate the browser trusts, so there is no warning to click through and no
+      # public port to guard. No GPU, since the account has no GPU quota; DCV renders
+      # ParaView in software, enough to prove it.
       Dcv:
         Enabled: true
+        AllowedIps: 172.31.0.0/16
       Iam:
         # A login pool takes no S3Access, so the read on cluster/* comes as a policy.
         AdditionalIamPolicies:
