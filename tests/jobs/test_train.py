@@ -173,3 +173,9 @@ def test_the_job_runs_one_rank_per_node_through_srun(jobs: Path, tmp_path: Path)
     assert "--seed 3 --epochs 2 --learning-rate 0.01 --device cpu" in container
     assert container.endswith("RANK=0 WORLD_SIZE=2 MASTER_ADDR=node-1")
     assert (run_dir / "nodes" / "node-1").exists()
+
+
+def test_a_run_may_wait_for_another_job(jobs: Path) -> None:
+    result = train(jobs, "-a", "55")
+    assert result.returncode == 0, result.stderr
+    assert "--dependency=afterok:55" in submissions(jobs)[0]
