@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Submits one training job on a generate run's samples, and a sync job that runs when it is done.
-# usage: train.sh [-s seed] [-p parent-run]... [-e epochs] [-l learning rate] [-d device] [-n nodes] <image uri> s3://bucket/prefix <samples dir> [queue]
+# usage: train.sh [-s seed] [-p parent-run]... [-e epochs] [-l learning rate] [-d device] [-n nodes] [-a job] <image uri> s3://bucket/prefix <samples dir> [queue]
 # The image is the training one, oras://ghcr.io/<owner>/<repo>/train:<commit>, which carries torch.
 # The job takes whole nodes of the queue, one by default, and trains one model across
-# them with a rank per node. The record names what an audit walks back to: the image's
-# digest, the cluster configuration, the job ids, the seed, the generate run the samples
-# came from as the parent, and the settings.
+# them with a rank per node; -a holds it until the job writing the samples ends. The
+# record names what an audit walks back to: the image's digest, the cluster
+# configuration, the job ids, the seed, the generate run the samples came from as the
+# parent, and the settings.
 set -euo pipefail
-seed=0 parents='[]' epochs=10 learning_rate=0.001 device=cpu nodes=1
-while getopts 's:p:e:l:d:n:' option; do
+seed=0 parents='[]' epochs=10 learning_rate=0.001 device=cpu nodes=1 after=''
+while getopts 's:p:e:l:d:n:a:' option; do
   case $option in
     s) seed=$OPTARG ;;
     p) parents=$(jq --arg parent "$OPTARG" '. + [$parent]' <<<"$parents") ;;
@@ -16,6 +17,7 @@ while getopts 's:p:e:l:d:n:' option; do
     l) learning_rate=$OPTARG ;;
     d) device=$OPTARG ;;
     n) nodes=$OPTARG ;;
+    a) after=$OPTARG ;;
     *) exit 2 ;;
   esac
 done
@@ -41,8 +43,10 @@ if [[ -f $config ]]; then
   # The idle tail the node will be billed for is a cluster setting, so the record keeps it.
   idle=$(sed -n 's/^ *ScaledownIdletime: *//p' "$config" | head -1)
 fi
+hold=()
+[[ -n $after ]] && hold=(--dependency="afterok:$after")
 submitted=$(date -u +%FT%TZ)
-job=$(sbatch --parsable --partition "$queue" --nodes "$nodes" \
+job=$(sbatch --parsable --partition "$queue" --nodes "$nodes" "${hold[@]+"${hold[@]}"}" \
   --export="ALL,RUN_DIR=$run_dir,TRAIN_IMAGE=$sif,SAMPLES=$samples,SEED=$seed,EPOCHS=$epochs,LEARNING_RATE=$learning_rate,DEVICE=$device" \
   --output "$run_dir/logs/train.out" "$jobs/train.sbatch")
 sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$job" \
