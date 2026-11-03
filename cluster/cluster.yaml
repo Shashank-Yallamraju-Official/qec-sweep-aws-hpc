@@ -44,11 +44,15 @@ LoginNodes:
       Networking:
         SubnetIds:
           - *subnet
-      # The port is closed to the internet: a desktop is reached through Session
-      # Manager port forwarding to localhost, by cluster/dcv-session.sh, with a
-      # certificate the browser trusts, so there is no warning to click through and no
-      # public port to guard. No GPU, since the account has no GPU quota; DCV renders
-      # ParaView in software, enough to prove it.
+      # Nothing on this node is reachable from the internet. There is no key pair, so
+      # SSH admits nobody, but ParallelCluster still fronts the pool with a load balancer
+      # on port 22 and opens DCV's port; both are held to the VPC. A desktop is reached
+      # through Session Manager port forwarding to localhost, by cluster/dcv-session.sh,
+      # with a certificate the browser trusts, so there is no warning to click through.
+      # No GPU, since the account has no GPU quota; DCV renders ParaView in software,
+      # enough to prove it.
+      Ssh:
+        AllowedIps: 172.31.0.0/16
       Dcv:
         Enabled: true
         AllowedIps: 172.31.0.0/16
