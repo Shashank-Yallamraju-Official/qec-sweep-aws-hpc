@@ -40,19 +40,27 @@ def noisy_circuit(cell: Cell, noise: Noise = DEPOLARISING) -> stim.Circuit:
     circuit = memory_circuit(cell)
     if noise == DEPOLARISING:
         return circuit
-    return _with_y_data_noise(circuit)
+    return _with_y_data_noise(circuit, _measure_qubits(circuit))
 
 
-def _with_y_data_noise(circuit: stim.Circuit) -> stim.Circuit:
+def _measure_qubits(circuit: stim.Circuit) -> frozenset[int]:
+    # The generated circuit measures and resets its measure qubits every round and
+    # reads the data qubits out once at the end; the MR targets are the former.
+    return frozenset(
+        t.value for ins in circuit.flattened() if ins.name == "MR" for t in ins.targets_copy()
+    )
+
+
+def _with_y_data_noise(circuit: stim.Circuit, measure_qubits: frozenset[int]) -> stim.Circuit:
     out = stim.Circuit()
     for instruction in circuit:
         if isinstance(instruction, stim.CircuitRepeatBlock):
-            out.append(
-                stim.CircuitRepeatBlock(
-                    instruction.repeat_count, _with_y_data_noise(instruction.body_copy())
-                )
-            )
-        elif instruction.name == "DEPOLARIZE1":
+            body = _with_y_data_noise(instruction.body_copy(), measure_qubits)
+            out.append(stim.CircuitRepeatBlock(instruction.repeat_count, body))
+        elif instruction.name == "DEPOLARIZE1" and not (
+            {t.value for t in instruction.targets_copy()} & measure_qubits
+        ):
+            # The per-round data noise; the after-gate noise on measure qubits stays.
             out.append("Y_ERROR", instruction.targets_copy(), instruction.gate_args_copy())
         else:
             out.append(instruction)
