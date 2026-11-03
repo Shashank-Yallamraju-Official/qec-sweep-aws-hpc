@@ -151,7 +151,7 @@ def score(
             logits, flips.to(torch.float32), reduction="sum"
         )
         right = ((logits > 0).to(torch.uint8) == flips).to(torch.float32).sum()
-    sums = torch.tensor([float(loss), float(right), float(len(flips))])
+    sums = torch.tensor([float(loss), float(right), float(len(flips))], device=detectors.device)
     if world.shared:
         dist.all_reduce(sums)
     return float(sums[0] / sums[2]), float(sums[1] / sums[2])
@@ -181,7 +181,7 @@ def train(  # noqa: PLR0913
     world = world or World.from_environment()
     cell, names, detectors, flips = load_samples(samples_dir)
     where = torch.device(device)
-    (train_x, train_y), (held_x, held_y) = _split(detectors.to(where), flips.to(where), seed, world)
+    (train_x, train_y), (held_x, held_y) = split(detectors.to(where), flips.to(where), seed, world)
     torch.manual_seed(seed)
     model = build(cell, hidden=hidden, layers=layers).to(where)
     if world.shared:
@@ -233,10 +233,17 @@ Split = tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor]]
 """This rank's training detectors and flips, then the held-out ones every rank shares."""
 
 
-def _split(detectors: Tensor, flips: Tensor, seed: int, world: World) -> Split:
+def split(detectors: Tensor, flips: Tensor, seed: int, world: World) -> Split:
+    """Hold a tenth of the shots out, then give this rank its share of the rest.
+
+    Every rank gets the same number of shots, so every rank takes the same number
+    of steps: the ranks average gradients at each step, and one with a step more
+    than the others would wait for it forever. Up to ``size - 1`` shots go unused.
+    """
     order = torch.randperm(len(flips), generator=torch.Generator().manual_seed(seed))
     held = round(len(flips) * HELD_OUT)
-    held_idx, share = order[:held], order[held:][world.rank :: world.size]
+    held_idx, training = order[:held], order[held:]
+    share = training[world.rank :: world.size][: len(training) // world.size]
     return (detectors[share], flips[share]), (detectors[held_idx], flips[held_idx])
 
 
@@ -250,7 +257,7 @@ def _fit(
     epoch_losses = []
     for _ in range(settings.epochs):
         trainee.train()
-        sums = torch.zeros(2)
+        sums = torch.zeros(2, device=train_x.device)
         for rows in torch.split(torch.randperm(len(train_y), generator=shuffler), settings.batch):
             optimiser.zero_grad()
             step_loss = nn.functional.binary_cross_entropy_with_logits(
@@ -258,7 +265,9 @@ def _fit(
             )
             step_loss.backward()  # type: ignore[no-untyped-call]
             optimiser.step()
-            sums += torch.tensor([step_loss.detach().item() * len(rows), float(len(rows))])
+            sums += torch.tensor(
+                [step_loss.detach().item() * len(rows), float(len(rows))], device=sums.device
+            )
         if world.shared:
             dist.all_reduce(sums)
         epoch_losses.append(float(sums[0] / sums[1]))
