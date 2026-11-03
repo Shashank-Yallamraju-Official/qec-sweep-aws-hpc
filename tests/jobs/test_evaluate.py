@@ -47,12 +47,12 @@ def env(jobs: Path, **extra: str) -> dict[str, str]:
 
 
 def evaluate(
-    jobs: Path, *cells: str, options: tuple[str, ...] = ()
+    jobs: Path, *cells: str, options: tuple[str, ...] = (), shots: str = "1000"
 ) -> subprocess.CompletedProcess[str]:
     command: list[str | Path] = ["bash", jobs / "evaluate.sh", *options]
     command += [IMAGE, "s3://bucket/evaluations", "sweep"]
     return subprocess.run(
-        [*command, "1000", *cells], env=env(jobs), capture_output=True, text=True, check=False
+        [*command, shots, *cells], env=env(jobs), capture_output=True, text=True, check=False
     )
 
 
@@ -159,7 +159,7 @@ def test_an_array_task_decodes_its_cell_with_its_distances_model(
     )
     assert result.returncode == 0, result.stderr
     (call,) = calls(jobs)
-    assert call.startswith("apptainer run --bind /scratch /scratch/images/ab.sif ")
+    assert call.startswith("apptainer exec --bind /scratch /scratch/images/ab.sif sweep ")
     assert "--d 5 --p 0.002 --shots 1000 --seed 4 --noise correlated" in call
     assert "--decoder learned --model /m/5.pt" in call
     assert call.endswith(f"--out {tmp_path / 'run' / 'cells'}")
@@ -192,3 +192,10 @@ def test_a_matching_task_names_no_model(jobs: Path, tmp_path: Path) -> None:
     (call,) = calls(jobs)
     assert "--decoder" not in call
     assert "--model" not in call
+
+
+def test_shots_must_be_a_number_before_anything_is_submitted(jobs: Path) -> None:
+    result = evaluate(jobs, "3:0.001", shots="100k")
+    assert result.returncode == 2
+    assert "shots" in result.stderr
+    assert not (jobs.parent / "calls").exists()

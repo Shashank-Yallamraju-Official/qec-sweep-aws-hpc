@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# One array task decodes one named cell inside the image; the task index picks the cell,
-# and the cell's distance picks the model when the decoder is the learned one.
+# One array task decodes one named cell with the sweep command inside the image, which
+# is the training one when the decoder is the learned one; the task index picks the
+# cell, and the cell's distance picks the model.
 # The submitter sets --array, RUN_DIR, SWEEP_IMAGE, CELLS, SHOTS, SEED, NOISE, DECODER,
 # MODELS and --output; see evaluate.sh.
 #SBATCH --job-name=evaluate
@@ -18,5 +19,5 @@ if [[ $DECODER != pymatching ]]; then
 fi
 # Each node leaves a marker, so the run's record counts the nodes it actually used.
 mkdir -p "$RUN_DIR/nodes" && touch "$RUN_DIR/nodes/$SLURMD_NODENAME"
-apptainer run --bind /scratch "$SWEEP_IMAGE" --d "${cell%%:*}" --p "${cell#*:}" --shots "$SHOTS" \
+apptainer exec --bind /scratch "$SWEEP_IMAGE" sweep --d "${cell%%:*}" --p "${cell#*:}" --shots "$SHOTS" \
   --seed "$SEED" --noise "$NOISE" "${choice[@]+"${choice[@]}"}" --out "$RUN_DIR/cells"

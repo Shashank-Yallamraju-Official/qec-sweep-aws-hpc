@@ -22,6 +22,7 @@ shift $((OPTIND - 1))
 image_uri=$1 destination=${2%/} queue=$3 shots=$4
 shift 4
 [[ $seed =~ ^(0|[1-9][0-9]*)$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
+[[ $shots =~ ^[1-9][0-9]*$ ]] || { echo "shots must be a positive integer, not '$shots'" >&2; exit 2; }
 [[ $decoder == pymatching || $decoder == learned ]] || { echo "the decoder is pymatching or learned, not '$decoder'" >&2; exit 2; }
 (( $# > 0 )) || { echo "give at least one cell as distance:noise" >&2; exit 2; }
 for cell in "$@"; do

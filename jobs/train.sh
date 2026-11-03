@@ -26,6 +26,7 @@ image_uri=$1 destination=${2%/} samples=$3 queue=${4:-train}
 [[ $seed =~ ^(0|[1-9][0-9]*)$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
 [[ $epochs =~ ^[1-9][0-9]*$ ]] || { echo "epochs must be a positive integer, not '$epochs'" >&2; exit 2; }
 [[ $nodes =~ ^[1-9][0-9]*$ ]] || { echo "nodes must be a positive integer, not '$nodes'" >&2; exit 2; }
+[[ $learning_rate =~ ^[0-9]*\.?[0-9]+([eE]-?[0-9]+)?$ ]] || { echo "learning rate must be a number, not '$learning_rate'" >&2; exit 2; }
 [[ -d $samples ]] || { echo "no samples directory at '$samples'" >&2; exit 2; }
 jobs=$(cd "$(dirname "$0")" && pwd)
 # Keyed by user so two people's runs never contend for one directory.

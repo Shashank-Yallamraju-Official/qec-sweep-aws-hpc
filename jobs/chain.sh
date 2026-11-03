@@ -25,8 +25,16 @@ shift $((OPTIND - 1))
 sweep_image=$1 train_image=$2 bucket=${3%/} queue=$4 train_shots=$5 evaluate_shots=$6
 shift 6
 (( $# > 0 )) || { echo "give at least one training cell as distance:noise" >&2; exit 2; }
+for value in "$train_shots:train shots" "$evaluate_shots:evaluate shots" "$chunks:chunks" "$epochs:epochs" "$train_nodes:train nodes"; do
+  [[ ${value%%:*} =~ ^[1-9][0-9]*$ ]] || { echo "${value#*:} must be a positive integer, not '${value%%:*}'" >&2; exit 2; }
+done
+[[ $seed =~ ^(0|[1-9][0-9]*)$ ]] || { echo "seed must be a non-negative integer, not '$seed'" >&2; exit 2; }
+distances=()
 for cell in "$@"; do
   [[ $cell =~ ^[0-9]+:[0-9.e-]+$ ]] || { echo "a cell is distance:noise, not '$cell'" >&2; exit 2; }
+  # One model per distance: the evaluation picks a cell's model by its distance alone.
+  [[ " ${distances[*]+"${distances[*]}"} " == *" ${cell%%:*} "* ]] && { echo "two training cells of distance ${cell%%:*}; one per distance" >&2; exit 2; }
+  distances+=("${cell%%:*}")
 done
 if (( ${#rates[@]} == 0 )); then
   while read -r rate; do rates+=("$rate"); done < <(printf '%s\n' "${@#*:}" | awk '!seen[$0]++')
