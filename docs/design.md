@@ -24,9 +24,7 @@ The sweep's unit contract: `sweep --d 5 --p 1e-3 --shots 100000 --out <path>` wr
 
 ## Architecture
 
-Architecture diagram: added with the README in stage 10.
-
-The top lane is what changes with every commit; the bottom lane is what the commit produces. The sweep queue is the accent because it carries the primary workload; the MPI queue and DCV node are the two additions that go beyond MLOps.
+The architecture figure is the README's: one change followed from a pull request to a comparison as a sequence across six named systems, drawn by `tools/loop_figure.py` into `docs/figures/` in a light and a dark theme with the official marks embedded. A sequence rather than a box diagram because the platform is the order things happen in; the only colour is the path a result takes to the reader.
 
 | Component | Problem it solves | Why this choice |
 | --- | --- | --- |
