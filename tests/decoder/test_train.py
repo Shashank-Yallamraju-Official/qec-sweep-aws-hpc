@@ -1,4 +1,8 @@
 import json
+import os
+import socket
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -86,3 +90,36 @@ def test_main_trains_from_the_command_line(
     assert main(argv) == 0
     assert (out / "train.json").exists()
     assert str(out / "train.json") in capsys.readouterr().out
+
+
+def free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def test_two_ranks_train_one_model_between_them(samples: Path, tmp_path: Path) -> None:
+    out = tmp_path / "model"
+    port = str(free_port())
+    argv = [sys.executable, "-m", "decoder.train", "--samples", str(samples), "--out", str(out)]
+    argv += ["--epochs", "2", "--hidden", "8", "--layers", "1", "--batch", "32"]
+    world = {"WORLD_SIZE": "2", "MASTER_ADDR": "127.0.0.1", "MASTER_PORT": port}
+    ranks = [
+        subprocess.Popen(
+            argv, env={**os.environ, **world, "RANK": str(rank)}, stderr=subprocess.PIPE, text=True
+        )
+        for rank in range(2)
+    ]
+    for rank in ranks:
+        assert rank.wait(timeout=120) == 0, rank.stderr.read()  # type: ignore[union-attr]
+    written = json.loads((out / "train.json").read_text())
+    assert written["ranks"] == 2
+    assert written["shots"] == 300
+    assert written["held_out"] == 30
+    assert written["epoch_losses"][-1] < written["epoch_losses"][0]
+    assert load(out / "decoder.pt").hidden == 8
+
+
+def test_a_single_process_records_one_rank(samples: Path, tmp_path: Path) -> None:
+    record = train(samples, tmp_path / "model", epochs=1, hidden=8, layers=1)
+    assert record.ranks == 1
