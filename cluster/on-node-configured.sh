@@ -31,3 +31,16 @@ fi
 if [[ -d /scratch ]]; then
   chmod 1777 /scratch
 fi
+
+# The login node serves a desktop through DCV; ParaView is the GUI tool on it, enough
+# to prove the pattern. ParallelCluster names the node's kind in its cluster file.
+cfnconfig=${CFNCONFIG:-/etc/parallelcluster/cfnconfig}
+if [[ -f $cfnconfig ]]; then
+  # shellcheck source=/dev/null
+  source "$cfnconfig"
+  if [[ ${cfn_node_type:-} == LoginNode ]]; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -q >/dev/null
+    apt-get install -y -q --no-install-recommends paraview >/dev/null
+  fi
+fi
