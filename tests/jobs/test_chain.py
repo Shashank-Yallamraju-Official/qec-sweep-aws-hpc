@@ -164,10 +164,13 @@ def test_the_report_job_compares_the_two_evaluations(jobs: Path, tmp_path: Path)
         ["bash", jobs / "report.sbatch"], env=job_env, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
-    (call,) = (jobs.parent / "calls").read_text().splitlines()
-    assert call.startswith(
+    compare, plot = (jobs.parent / "calls").read_text().splitlines()
+    assert compare.startswith(
         "apptainer exec --bind /scratch /scratch/images/train.sif results-compare "
     )
-    assert "/scratch/tester/evaluations/a /scratch/tester/evaluations/b" in call
-    assert f"--out {run_dir}/report/comparison.parquet" in call
+    assert "/scratch/tester/evaluations/a /scratch/tester/evaluations/b" in compare
+    assert f"--out {run_dir}/report/comparison.parquet" in compare
+    assert plot.startswith("apptainer exec --bind /scratch /scratch/images/train.sif decoder-plot ")
+    assert f"--out {run_dir}/report/decoders.png" in plot
     assert (run_dir / "report" / "comparison.txt").exists()
+    assert (run_dir / "report" / "decoders.txt").exists()
