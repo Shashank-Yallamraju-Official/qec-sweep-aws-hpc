@@ -127,74 +127,75 @@ The order of work from stage 8 on is 13, 14, 15, 12, 9, 10; the EFA points of st
 ### Stage 10, write-up
 
 63. `docs: add a readme to each package`
-64. `docs: add readme with architecture, metrics and what broke`
+64. `feat(tools): draw the loop figure from the official marks`
+65. `docs: add readme with architecture, metrics and what broke`
 
 ### Stage 11, gpu queue (last, and only with a GPU quota)
 
-65. `feat(cluster): add a g6 queue with gpus as a slurm resource`
-66. `feat(jobs): add a smoke job listing every gpu on a node`
-67. `build(image): build a cuda image with cupy and cuquantum`
-68. `feat(mpi): add a cuda gate kernel on cupy arrays`
-69. `feat(mpi): exchange amplitudes between gpus over nccl`
-70. `test(mpi): check the gpu run's overlap with the cpu run`
-71. `feat(mpi): run the circuit on custatevec as the reference`
-72. `feat(jobs): submit the state-vector run across gpus`
-73. `feat(mpi): plot time per layer and cost by device`
-74. `docs(metrics): record gpu speed-up, scaling and cost per run`
-75. `docs: add the gpu path to the readme`
+66. `feat(cluster): add a g6 queue with gpus as a slurm resource`
+67. `feat(jobs): add a smoke job listing every gpu on a node`
+68. `build(image): build a cuda image with cupy and cuquantum`
+69. `feat(mpi): add a cuda gate kernel on cupy arrays`
+70. `feat(mpi): exchange amplitudes between gpus over nccl`
+71. `test(mpi): check the gpu run's overlap with the cpu run`
+72. `feat(mpi): run the circuit on custatevec as the reference`
+73. `feat(jobs): submit the state-vector run across gpus`
+74. `feat(mpi): plot time per layer and cost by device`
+75. `docs(metrics): record gpu speed-up, scaling and cost per run`
+76. `docs: add the gpu path to the readme`
 
 ### Stage 12, the decoder loop
 
-76. `feat(decoder): sample labelled syndromes from stim`
-77. `feat(jobs): generate the training set as a slurm array`
-78. `feat(decoder): add a recurrent decoder over syndrome rounds`
-79. `feat(decoder): train on one node and record the run`
-80. `build(image): build the training image with torch`
-81. `feat(decoder): train across nodes with data parallelism`
-82. `feat(decoder): decode a cell with the trained model`
-83. `feat(sweep): choose the decoder per cell`
-84. `feat(jobs): chain generate, train and evaluate as one run`
-85. `feat(decoder): plot both decoders' error rates by distance`
-86. `docs(metrics): record the learned decoder against matching`
+77. `feat(decoder): sample labelled syndromes from stim`
+78. `feat(jobs): generate the training set as a slurm array`
+79. `feat(decoder): add a recurrent decoder over syndrome rounds`
+80. `feat(decoder): train on one node and record the run`
+81. `build(image): build the training image with torch`
+82. `feat(decoder): train across nodes with data parallelism`
+83. `feat(decoder): decode a cell with the trained model`
+84. `feat(sweep): choose the decoder per cell`
+85. `feat(jobs): chain generate, train and evaluate as one run`
+86. `feat(decoder): plot both decoders' error rates by distance`
+87. `docs(metrics): record the learned decoder against matching`
 
 ### Stage 13, results as a versioned artifact
 
-87. `feat(jobs): record seeds and parent runs`
-88. `feat(results): catalogue every run into one table`
-89. `feat(results): compare two runs with confidence intervals`
-90. `feat(models): promote a decoder by manifest and pull request`
-91. `docs(metrics): record audit coverage of every figure`
-92. `docs: add readmes for results, models and the root`
+88. `feat(jobs): record seeds and parent runs`
+89. `feat(results): catalogue every run into one table`
+90. `feat(results): compare two runs with confidence intervals`
+91. `feat(models): promote a decoder by manifest and pull request`
+92. `docs(metrics): record audit coverage of every figure`
+93. `docs: add readmes for results, models and the root`
 
 ### Stage 14, comparison site
 
-93. `feat(web): scaffold the site with vite and svelte`
-94. `feat(web): query the catalogue in the browser with duckdb`
-95. `feat(web): pick two runs from the catalogue`
-96. `feat(web): compare two runs cell by cell with intervals`
-97. `feat(web): draw error-rate curves for the chosen runs`
-98. `feat(web): show each run's provenance chain`
-99. `feat(web): add dark mode and a keyboard path through it all`
-100. `test(web): drive the comparison end to end in playwright`
-101. `ci(web): check types, tests and bundle size on pull request`
-102. `ci(web): publish the site with its data snapshot on merge`
-103. `docs(metrics): record the site's load, query and size`
-104. `docs: add the web readme and the site to the root`
+94. `feat(web): scaffold the site with vite and svelte`
+95. `feat(web): query the catalogue in the browser with duckdb`
+96. `feat(web): pick two runs from the catalogue`
+97. `feat(web): compare two runs cell by cell with intervals`
+98. `feat(web): draw error-rate curves for the chosen runs`
+99. `feat(web): show each run's provenance chain`
+100. `feat(web): add dark mode and a keyboard path through it all`
+101. `test(web): drive the comparison end to end in playwright`
+102. `ci(web): check types, tests and bundle size on pull request`
+103. `ci(web): publish the site with its data snapshot on merge`
+104. `docs(metrics): record the site's load, query and size`
+105. `docs: add the web readme and the site to the root`
 
 ### Stage 15, a shorter loop and a smaller bill
 
-105. `feat(tools): time the loop from commit to first cell`
-106. `perf(sweep): run the grid longest cells first`
-107. `perf(jobs): reuse a pulled image by its digest`
-108. `feat(cluster): bake apptainer and the image into an ami`
-109. `perf(cluster): shorten the sweep queue's idle tail`
-110. `build(image): build the sweep image for arm64 too`
-111. `feat(cluster): add a graviton queue beside the x86 one`
-112. `feat(jobs): run the grid on each type for cells per dollar`
-113. `perf(ci): cache the environment and skip unchanged images`
-114. `feat(tools): plot cost and loop time before and after`
-115. `docs(metrics): record the loop time and cost per sweep after`
-116. `docs: add the optimisation stage to the readme`
+106. `feat(tools): time the loop from commit to first cell`
+107. `perf(sweep): run the grid longest cells first`
+108. `perf(jobs): reuse a pulled image by its digest`
+109. `feat(cluster): bake apptainer and the image into an ami`
+110. `perf(cluster): shorten the sweep queue's idle tail`
+111. `build(image): build the sweep image for arm64 too`
+112. `feat(cluster): add a graviton queue beside the x86 one`
+113. `feat(jobs): run the grid on each type for cells per dollar`
+114. `perf(ci): cache the environment and skip unchanged images`
+115. `feat(tools): plot cost and loop time before and after`
+116. `docs(metrics): record the loop time and cost per sweep after`
+117. `docs: add the optimisation stage to the readme`
 
 Fixes land where they happen as `fix(<scope>): ...`, scoped to the directory they touch, and are the only unplanned commits. Each `docs(metrics)` commit puts a real number into the table in the README and is the last commit of its stage.
 
