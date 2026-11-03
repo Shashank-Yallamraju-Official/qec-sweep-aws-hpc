@@ -28,9 +28,9 @@ done
 jobs=$(cd "$(dirname "$0")" && pwd)
 run_dir=${SCRATCH:-/scratch}/$USER/generate/$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$run_dir/samples" "$run_dir/logs"
-# apptainer reports the registry digest on stderr while pulling; the record keeps it,
-# since a tag can move and a digest cannot.
-digest=$(apptainer pull --force "$run_dir/sample.sif" "$image_uri" 2>&1 | tee >(cat >&2) | sed -n 's/^INFO: *Digest: *//p')
+# The image is pulled once per digest into a cache shared by every node; the record
+# keeps the digest, since a tag can move and a digest cannot.
+read -r digest sif < <("$jobs/pull-image.sh" "$image_uri")
 commit=$(cat "$jobs/COMMIT" 2>/dev/null || true)
 config=${CLUSTER_CONFIG:-/opt/parallelcluster/shared/cluster-config.yaml}
 config_hash=''
@@ -38,7 +38,7 @@ if [[ -f $config ]]; then config_hash=$(sha256sum "$config" | cut -c1-64); fi
 last=$(( $# * chunks - 1 ))
 submitted=$(date -u +%FT%TZ)
 array=$(sbatch --parsable --partition "$queue" --array="0-$last" \
-  --export="ALL,RUN_DIR=$run_dir,SAMPLE_IMAGE=$run_dir/sample.sif,CELLS=$*,SHOTS=$shots,CHUNKS=$chunks,SEED=$seed,NOISE=$noise" \
+  --export="ALL,RUN_DIR=$run_dir,SAMPLE_IMAGE=$sif,CELLS=$*,SHOTS=$shots,CHUNKS=$chunks,SEED=$seed,NOISE=$noise" \
   --output "$run_dir/logs/%a.out" "$jobs/generate.sbatch")
 sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$array" \
   --export="ALL,RUN_DIR=$run_dir,DESTINATION=$destination,OUTPUTS=samples,PATTERN=*.npz" \

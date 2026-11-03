@@ -14,18 +14,18 @@ STUBS = {
     # Job ids count up from 100; every call is logged for the test to read.
     "sbatch": '#!/usr/bin/env bash\necho "sbatch $*" >> "$STUB_LOG"\n'
     'n=$(grep -c "^sbatch" "$STUB_LOG"); echo $((100 + n))\n',
-    # A pull writes the file it was asked for and reports the digest, as the real one does.
-    "apptainer": '#!/usr/bin/env bash\necho "apptainer $*" >> "$STUB_LOG"\n'
-    '[[ $1 == pull ]] && { echo pulled > "${@: -2:1}"; echo "INFO:    Digest: '
-    + DIGEST
-    + '" >&2; }\nexit 0\n',
+    "apptainer": '#!/usr/bin/env bash\necho "apptainer $*" >> "$STUB_LOG"\n',
 }
 
 
 @pytest.fixture
 def jobs(tmp_path: Path) -> Path:
+    """A copy of the job scripts whose image pull is a stand-in, since there is no registry."""
     copy = tmp_path / "jobs"
     shutil.copytree(ROOT / "jobs", copy)
+    (copy / "pull-image.sh").write_text(
+        f'#!/usr/bin/env bash\necho "{DIGEST} /scratch/images/ab.sif"\n'
+    )
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, script in STUBS.items():
@@ -72,9 +72,9 @@ def record(jobs: Path) -> dict[str, object]:
 def test_one_array_task_per_cell_and_seed_chunk(jobs: Path) -> None:
     result = generate(jobs, "1000", "3:0.001", "3:0.002", "5:0.001", options=("-c", "2"))
     assert result.returncode == 0, result.stderr
-    pull, array, sync = calls(jobs)
-    assert pull.endswith(f" {IMAGE}")
+    array, sync = calls(jobs)
     assert "--partition sweep" in array
+    assert "SAMPLE_IMAGE=/scratch/images/ab.sif" in array
     assert "--array=0-5 " in array
     assert "CELLS=3:0.001 3:0.002 5:0.001" in array
     assert "SHOTS=1000" in array
