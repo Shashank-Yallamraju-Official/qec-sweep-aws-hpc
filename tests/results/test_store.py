@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from io import BytesIO
 from pathlib import Path
 
@@ -102,3 +104,20 @@ def test_locate_reads_a_directory_as_a_run_in_the_store_above_it(tmp_path: Path)
     store, key = locate(str(tmp_path / "sweeps/x"))
     assert store == LocalStore(tmp_path.resolve())
     assert key == "sweeps/x"
+
+
+def test_a_directory_store_needs_no_boto3(tmp_path: Path) -> None:
+    """The images carry no boto3; a node reading a run from scratch must not import it."""
+    run = tmp_path / "sweeps" / "x"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text("{}")
+    script = (
+        "import sys; sys.modules['boto3'] = None\n"
+        "from results.store import locate\n"
+        f"store, key = locate({str(run)!r}); print(key, store.read(key + '/run.json').decode())"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "sweeps/x {}"

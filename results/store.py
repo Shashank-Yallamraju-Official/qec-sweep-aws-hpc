@@ -8,8 +8,6 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-import boto3
-
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
@@ -65,6 +63,9 @@ class LocalStore:
 @cache
 def s3_client() -> S3Client:
     """The one S3 client every store shares; building one loads credentials and models."""
+    # Only a bucket needs boto3; a node reading a run from scratch has neither it nor a role.
+    import boto3  # noqa: PLC0415
+
     return boto3.client("s3")
 
 
