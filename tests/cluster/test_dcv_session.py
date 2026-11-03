@@ -74,6 +74,7 @@ def test_a_certificate_is_installed_on_the_node_before_the_session(
     log = calls(bin_dir)
     assert "/etc/dcv/dcv.pem" in log
     assert "/etc/dcv/dcv.key" in log
+    assert "chmod 600 /etc/dcv/dcv.pem /etc/dcv/dcv.key" in log
     assert "CERT" in log
     assert "KEY" in log
     assert "systemctl restart dcvserver" in log

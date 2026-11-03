@@ -43,10 +43,12 @@ on_node() {
     --instance-id "$node" --query StandardOutputContent --output text
 }
 
+# DCV takes a certificate from /etc/dcv, owned by its user and readable by nobody else:
+# any other mode and it silently falls back to the self-signed one it makes itself.
 if [[ -n $cert ]]; then
   on_node "$(printf 'cat > /etc/dcv/dcv.pem <<"PEM"\n%s\nPEM\ncat > /etc/dcv/dcv.key <<"PEM"\n%s\nPEM\n' \
     "$(cat "$cert")" "$(cat "$key")")
-chown dcv:dcv /etc/dcv/dcv.pem /etc/dcv/dcv.key && chmod 640 /etc/dcv/dcv.pem /etc/dcv/dcv.key
+chown dcv:dcv /etc/dcv/dcv.pem /etc/dcv/dcv.key && chmod 600 /etc/dcv/dcv.pem /etc/dcv/dcv.key
 systemctl restart dcvserver" > /dev/null
 fi
 
