@@ -37,13 +37,32 @@ def test_the_same_seed_gives_the_same_samples() -> None:
     assert not np.array_equal(sample(CELL, seed=1).detectors, sample(CELL, seed=2).detectors)
 
 
-def test_correlated_noise_turns_the_per_round_data_noise_into_y_errors() -> None:
-    plain = str(memory_circuit(CELL))
-    correlated = str(sample(CELL, seed=0, noise="correlated").circuit)
-    assert "DEPOLARIZE1" in plain
-    assert "DEPOLARIZE1" not in correlated
-    assert correlated.count("Y_ERROR") == plain.count("DEPOLARIZE1")
-    assert correlated.count("DEPOLARIZE2") == plain.count("DEPOLARIZE2")
+def test_correlated_noise_turns_only_the_per_round_data_noise_into_y_errors() -> None:
+    plain = memory_circuit(CELL).flattened()
+    correlated = sample(CELL, seed=0, noise="correlated").circuit.flattened()
+    measure_qubits = {t.value for ins in plain if ins.name == "MR" for t in ins.targets_copy()}
+    data_noise = [
+        ins
+        for ins in plain
+        if ins.name == "DEPOLARIZE1" and not {t.value for t in ins.targets_copy()} & measure_qubits
+    ]
+    y_errors = [ins for ins in correlated if ins.name == "Y_ERROR"]
+    assert data_noise
+    assert len(y_errors) == len(data_noise)
+    for ins in y_errors:
+        assert not {t.value for t in ins.targets_copy()} & measure_qubits
+    # The after-gate noise on the measure qubits stays what it was.
+    kept = [ins for ins in correlated if ins.name == "DEPOLARIZE1"]
+    assert len(kept) == sum(1 for ins in plain if ins.name == "DEPOLARIZE1") - len(data_noise)
+    assert str(correlated).count("DEPOLARIZE2") == str(plain).count("DEPOLARIZE2")
+
+
+def test_main_refuses_an_invalid_cell_with_a_message(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["--d", "4", "--p", "0.01", "--shots", "20", "--out", str(tmp_path)]
+    assert main(argv) == 2
+    assert "odd" in capsys.readouterr().err
 
 
 def test_samples_are_named_by_cell_seed_and_noise_and_read_back(tmp_path: Path) -> None:
