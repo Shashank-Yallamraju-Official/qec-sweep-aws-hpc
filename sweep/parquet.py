@@ -10,6 +10,7 @@ import pyarrow.parquet as pq
 
 from sweep.cell import Cell
 from sweep.decode import MATCHING, CellResult
+from sweep.noise import DEPOLARISING
 
 
 def write(result: CellResult, out_dir: Path) -> Path:
@@ -49,8 +50,10 @@ def read(path: Path) -> CellResult:
         seed=row["seed"],
         started=row["started"],
         host=row["host"],
-        # Every cell before stage 12 was decoded by matching, and said nothing about it.
+        # Every cell before stage 12 was decoded by matching under depolarising noise,
+        # and said nothing about either.
         decoder=row.get("decoder", MATCHING),
+        noise_model=row.get("noise_model", DEPOLARISING),
     )
 
 
@@ -71,4 +74,5 @@ def _row(result: CellResult) -> dict[str, int | float | str | datetime]:
         "finished": result.finished,
         "host": result.host,
         "decoder": result.decoder,
+        "noise_model": result.noise_model,
     }

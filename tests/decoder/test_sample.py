@@ -5,7 +5,7 @@ import pytest
 
 from decoder.sample import Samples, layout, main, read, sample, write
 from sweep.cell import Cell
-from sweep.decode import memory_circuit
+from sweep.noise import memory_circuit
 
 CELL = Cell(distance=3, noise=0.01, shots=50)
 

@@ -10,9 +10,9 @@ from math import sqrt
 
 import numpy as np
 import pymatching
-import stim
 
 from sweep.cell import Cell
+from sweep.noise import DEPOLARISING, Noise, noisy_circuit
 
 Z_95 = 1.96
 MATCHING = "pymatching"
@@ -31,6 +31,7 @@ class CellResult:
             tail can be read from the cells themselves.
         host: The machine that decoded it.
         decoder: What decoded it: ``pymatching``, or ``learned`` for the trained model.
+        noise_model: The noise model the shots were drawn under; see ``sweep.noise``.
     """
 
     cell: Cell
@@ -40,6 +41,7 @@ class CellResult:
     started: datetime = field(default_factory=lambda: datetime.now(UTC))
     host: str = field(default_factory=socket.gethostname)
     decoder: str = MATCHING
+    noise_model: str = DEPOLARISING
 
     @property
     def logical_error_rate(self) -> float:
@@ -78,24 +80,7 @@ def wilson_interval(errors: int, shots: int, z: float = Z_95) -> tuple[float, fl
     return low, high
 
 
-def memory_circuit(cell: Cell) -> stim.Circuit:
-    """Stim's rotated memory-Z surface code for a cell.
-
-    As many rounds as the distance, circuit-level depolarising noise at the cell's
-    rate on every channel.
-    """
-    return stim.Circuit.generated(
-        "surface_code:rotated_memory_z",
-        distance=cell.distance,
-        rounds=cell.distance,
-        after_clifford_depolarization=cell.noise,
-        before_round_data_depolarization=cell.noise,
-        before_measure_flip_probability=cell.noise,
-        after_reset_flip_probability=cell.noise,
-    )
-
-
-def decode(cell: Cell, seed: int = 0) -> CellResult:
+def decode(cell: Cell, seed: int = 0, noise: Noise = DEPOLARISING) -> CellResult:
     """Sample a cell's syndromes with Stim and decode them with PyMatching.
 
     Samples are kept bit-packed so a large cell stays under a byte per detector-shot.
@@ -103,13 +88,14 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
     Args:
         cell: What to simulate.
         seed: Sampler seed; the same seed gives the same result.
+        noise: The noise model the shots are drawn under.
 
     Returns:
         The error count with its timing, from which the rate and interval follow.
     """
     started = datetime.now(UTC)
     start = time.perf_counter()
-    circuit = memory_circuit(cell)
+    circuit = noisy_circuit(cell, noise)
     syndromes, observables = circuit.compile_detector_sampler(seed=seed).sample(
         cell.shots, separate_observables=True, bit_packed=True
     )
@@ -119,5 +105,10 @@ def decode(cell: Cell, seed: int = 0) -> CellResult:
     )
     errors = int(np.any(predictions != observables, axis=1).sum())
     return CellResult(
-        cell=cell, errors=errors, seconds=time.perf_counter() - start, seed=seed, started=started
+        cell=cell,
+        errors=errors,
+        seconds=time.perf_counter() - start,
+        seed=seed,
+        started=started,
+        noise_model=noise,
     )

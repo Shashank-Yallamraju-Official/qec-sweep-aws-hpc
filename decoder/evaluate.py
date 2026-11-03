@@ -16,16 +16,17 @@ import numpy as np
 import torch
 
 from decoder.model import RecurrentDecoder, load
-from decoder.sample import Noise, layout, noisy_circuit, sample
+from decoder.sample import layout, sample
 from sweep.cell import Cell
 from sweep.decode import CellResult
+from sweep.noise import DEPOLARISING, Noise, noisy_circuit
 
 LEARNED = "learned"
 BATCH = 4096
 
 
 def decode(
-    cell: Cell, model: Path, seed: int = 0, noise: Noise = "depolarising", batch: int = BATCH
+    cell: Cell, model: Path, seed: int = 0, noise: Noise = DEPOLARISING, batch: int = BATCH
 ) -> CellResult:
     """Sample a cell's syndromes and decode them with a saved model.
 
@@ -56,6 +57,7 @@ def decode(
         seed=seed,
         started=started,
         decoder=LEARNED,
+        noise_model=noise,
     )
 
 

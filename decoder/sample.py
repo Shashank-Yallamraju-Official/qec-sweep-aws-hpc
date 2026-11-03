@@ -12,21 +12,12 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, get_args
 
 import numpy as np
 import stim
 
 from sweep.cell import Cell
-from sweep.decode import memory_circuit
-
-Noise = Literal["depolarising", "correlated"]
-NOISE_MODELS: tuple[Noise, ...] = get_args(Noise)
-"""``depolarising`` is Stim's circuit-level model, the one the sweep decodes under.
-``correlated`` keeps every channel but turns the per-round data noise into pure Y
-errors: a Y flips both an X and a Z stabiliser at once, and matching, which decodes
-the two kinds apart, is known to do worse on it than a decoder that sees both.
-"""
+from sweep.noise import NOISE_MODELS, Noise, noisy_circuit
 
 
 @dataclass(frozen=True)
@@ -92,30 +83,6 @@ def layout(circuit: stim.Circuit) -> Layout:
         rounds_of=tuple(int(coordinates[d][2]) for d in slots),
         stabilisers_of=tuple(position_of[(coordinates[d][0], coordinates[d][1])] for d in slots),
     )
-
-
-def noisy_circuit(cell: Cell, noise: Noise) -> stim.Circuit:
-    """The cell's memory circuit under a noise model; see ``NOISE_MODELS``."""
-    circuit = memory_circuit(cell)
-    if noise == "depolarising":
-        return circuit
-    return _with_y_data_noise(circuit)
-
-
-def _with_y_data_noise(circuit: stim.Circuit) -> stim.Circuit:
-    out = stim.Circuit()
-    for instruction in circuit:
-        if isinstance(instruction, stim.CircuitRepeatBlock):
-            out.append(
-                stim.CircuitRepeatBlock(
-                    instruction.repeat_count, _with_y_data_noise(instruction.body_copy())
-                )
-            )
-        elif instruction.name == "DEPOLARIZE1":
-            out.append("Y_ERROR", instruction.targets_copy(), instruction.gate_args_copy())
-        else:
-            out.append(instruction)
-    return out
 
 
 def sample(cell: Cell, seed: int = 0, noise: Noise = "depolarising") -> Samples:

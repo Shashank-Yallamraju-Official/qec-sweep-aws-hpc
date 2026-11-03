@@ -1,4 +1,9 @@
-"""The ``sweep`` command: one call, one cell, one Parquet file."""
+"""The ``sweep`` command: one call, one cell, one Parquet file.
+
+The decoder is a choice of the call: PyMatching by default, or the trained model
+behind ``--decoder learned --model <decoder.pt>``, which needs torch and so runs in
+the training image. The noise model is a choice too; both are written into the cell.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +13,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from sweep.cell import Cell
-from sweep.decode import decode
+from sweep.decode import MATCHING, CellResult, decode
 from sweep.grid import GRID
+from sweep.noise import DEPOLARISING, NOISE_MODELS, Noise
 from sweep.parquet import write
+
+LEARNED = "learned"
+DECODERS = (MATCHING, LEARNED)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -20,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: Arguments without the program name; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status: 0 on success, 2 when the cell is invalid.
+        Exit status: 0 on success, 2 when the cell or the decoder choice is invalid.
     """
     parser = argparse.ArgumentParser(
         prog="sweep", description="sample and decode one surface-code cell"
@@ -33,13 +42,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--out", type=Path, required=True, help="directory for the result")
     parser.add_argument("--seed", type=int, default=0, help="sampler seed")
+    parser.add_argument("--noise", choices=NOISE_MODELS, default=DEPOLARISING, help="noise model")
+    parser.add_argument("--decoder", choices=DECODERS, default=MATCHING, help="what decodes")
+    parser.add_argument("--model", type=Path, help="the trained model, for the learned decoder")
     args = parser.parse_args(argv)
     try:
         cell = _cell(args)
+        result = _decode(cell, args)
     except (ValueError, IndexError) as error:
         print(f"sweep: {error}", file=sys.stderr)
         return 2
-    print(write(decode(cell, seed=args.seed), args.out))
+    print(write(result, args.out))
     return 0
 
 
@@ -54,3 +67,19 @@ def _cell(args: argparse.Namespace) -> Cell:
         msg = "give --index, or all of --d, --p and --shots"
         raise ValueError(msg)
     return Cell(distance=args.d, noise=args.p, shots=args.shots)
+
+
+def _decode(cell: Cell, args: argparse.Namespace) -> CellResult:
+    noise: Noise = args.noise
+    if args.decoder == MATCHING:
+        if args.model is not None:
+            msg = "--model goes with --decoder learned; matching takes no model"
+            raise ValueError(msg)
+        return decode(cell, seed=args.seed, noise=noise)
+    if args.model is None:
+        msg = "the learned decoder needs --model, the decoder.pt a training run wrote"
+        raise ValueError(msg)
+    # Only the learned decoder needs torch, which the sweep image does not carry.
+    from decoder.evaluate import decode as decode_learned  # noqa: PLC0415
+
+    return decode_learned(cell, args.model, seed=args.seed, noise=noise)
