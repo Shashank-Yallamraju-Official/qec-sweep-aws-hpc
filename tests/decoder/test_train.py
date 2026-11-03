@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 
 from decoder.model import load  # noqa: E402
 from decoder.sample import sample, write  # noqa: E402
-from decoder.train import Training, main, train  # noqa: E402
+from decoder.train import Training, World, main, split, train  # noqa: E402
 from sweep.cell import Cell  # noqa: E402
 
 CELL = Cell(distance=3, noise=0.05, shots=150)
@@ -123,3 +123,12 @@ def test_two_ranks_train_one_model_between_them(samples: Path, tmp_path: Path) -
 def test_a_single_process_records_one_rank(samples: Path, tmp_path: Path) -> None:
     record = train(samples, tmp_path / "model", epochs=1, hidden=8, layers=1)
     assert record.ranks == 1
+
+
+def test_split_gives_every_rank_the_same_number_of_shots() -> None:
+    detectors = torch.zeros((101, 2, 3), dtype=torch.uint8)
+    flips = torch.zeros(101, dtype=torch.uint8)
+    (first, _), (held, _) = split(detectors, flips, 0, World(0, 2))
+    (second, _), _ = split(detectors, flips, 0, World(1, 2))
+    assert len(held) == 10
+    assert len(first) == len(second) == 45

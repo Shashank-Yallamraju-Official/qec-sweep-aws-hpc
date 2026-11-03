@@ -90,3 +90,21 @@ def test_main_refuses_runs_that_share_no_cell(
     )
     assert main([str(matching), str(other), "--out", str(tmp_path / "x.png")]) == 2
     assert "no cell" in capsys.readouterr().err
+
+
+def test_plot_refuses_more_distances_than_it_has_colours(tmp_path: Path) -> None:
+    rows = [
+        {
+            "distance": d,
+            "noise": 0.001,
+            "shots": 1000,
+            "errors": 1,
+            "logical_error_rate": 1e-3,
+            "ci_low": 0.0,
+            "ci_high": 1e-2,
+        }
+        for d in (3, 5, 7, 9, 11, 13)
+    ]
+    table = pa.Table.from_pylist(rows)
+    with pytest.raises(ValueError, match="6 distances"):
+        plot(compare(table, table), "depolarising", tmp_path / "x.png")

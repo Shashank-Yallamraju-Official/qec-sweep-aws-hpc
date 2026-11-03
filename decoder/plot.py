@@ -44,10 +44,18 @@ def plot(comparison: Comparison, noise_model: str, out: Path) -> tuple[int, int]
 
     Returns:
         How many distances and how many noise rates were drawn.
+
+    Raises:
+        ValueError: When there are more distances than the fixed hues can tell apart.
     """
     groups = by_distance(comparison)
+    if len(groups) > len(DISTANCE_COLOURS):
+        msg = f"{len(groups)} distances, but only {len(DISTANCE_COLOURS)} hues keep apart"
+        raise ValueError(msg)
     fig, ax = plt.subplots(figsize=(7, 5))
-    for colour, (distance, cells) in zip(DISTANCE_COLOURS, groups.items(), strict=False):
+    for colour, (distance, cells) in zip(
+        DISTANCE_COLOURS[: len(groups)], groups.items(), strict=True
+    ):
         for side, (name, style, marker) in (("a", MATCHING), ("b", LEARNED)):
             drawn = [c for c in cells if getattr(c, side).errors > 0]
             rates = [getattr(c, side).rate for c in drawn]
@@ -103,7 +111,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: ``<matching run> <learned run> [--out png]``; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status: 0 on success, 2 when a run has no cells or the runs share none.
+        Exit status: 0 on success, 2 when a run has no cells, the runs share none, or
+        there are more distances than the figure can tell apart.
     """
     parser = argparse.ArgumentParser(
         prog="decoder-plot", description="both decoders' error rates by distance"
@@ -127,7 +136,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("decoder-plot: the runs share no cell", file=sys.stderr)
         return 2
     noise_model = str(cells_a.to_pylist()[0].get("noise_model", "depolarising"))
-    distances, rates = plot(comparison, noise_model, args.out)
+    try:
+        distances, rates = plot(comparison, noise_model, args.out)
+    except ValueError as error:
+        print(f"decoder-plot: {error}", file=sys.stderr)
+        return 2
     print(f"{summary(comparison)}\n{distances} distances, {rates} noise rates -> {args.out}")
     return 0
 

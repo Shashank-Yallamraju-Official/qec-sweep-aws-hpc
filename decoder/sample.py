@@ -147,7 +147,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: ``--d --p --shots [--seed] [--noise] --out``; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status 0.
+        Exit status: 0 on success, 2 when the cell is invalid.
     """
     parser = argparse.ArgumentParser(
         prog="decoder-sample", description="sample labelled syndrome histories for one cell"
@@ -159,7 +159,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--noise", choices=NOISE_MODELS, default="depolarising", help="noise model")
     parser.add_argument("--out", type=Path, required=True, help="directory for the file")
     args = parser.parse_args(argv)
-    cell = Cell(distance=args.d, noise=args.p, shots=args.shots)
+    try:
+        cell = Cell(distance=args.d, noise=args.p, shots=args.shots)
+    except ValueError as error:
+        print(f"decoder-sample: {error}", file=sys.stderr)
+        return 2
     print(write(sample(cell, seed=args.seed, noise=args.noise), args.out))
     return 0
 
