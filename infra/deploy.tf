@@ -255,7 +255,7 @@ data "aws_iam_policy_document" "pcluster" {
 
 # ParallelCluster's privileged IAM mode: it creates the cluster's own roles under
 # the parallelcluster/ path and may attach only the policies named here, which
-# include the two the cluster configuration asks for.
+# include the three the cluster configuration asks for.
 data "aws_iam_policy_document" "pcluster_iam" {
   statement {
     sid = "Roles"
@@ -279,6 +279,7 @@ data "aws_iam_policy_document" "pcluster_iam" {
         "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
         aws_iam_policy.node_results.arn,
+        aws_iam_policy.node_cluster_files.arn,
       ]
     }
   }
