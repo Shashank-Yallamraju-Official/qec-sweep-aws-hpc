@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from sweep.cell import Cell
-from sweep.decode import CellResult
+from sweep.decode import MATCHING, CellResult
 
 
 def write(result: CellResult, out_dir: Path) -> Path:
@@ -49,6 +49,8 @@ def read(path: Path) -> CellResult:
         seed=row["seed"],
         started=row["started"],
         host=row["host"],
+        # Every cell before stage 12 was decoded by matching, and said nothing about it.
+        decoder=row.get("decoder", MATCHING),
     )
 
 
@@ -68,4 +70,5 @@ def _row(result: CellResult) -> dict[str, int | float | str | datetime]:
         "started": result.started,
         "finished": result.finished,
         "host": result.host,
+        "decoder": result.decoder,
     }

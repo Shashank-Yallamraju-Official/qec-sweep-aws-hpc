@@ -47,7 +47,29 @@ def test_columns_are_flat_and_named(tmp_path: Path) -> None:
         "started",
         "finished",
         "host",
+        "decoder",
     ]
+
+
+def test_a_result_names_its_decoder_and_matching_is_the_default(tmp_path: Path) -> None:
+    assert RESULT.decoder == "pymatching"
+    learned = CellResult(
+        cell=RESULT.cell,
+        errors=3,
+        seconds=2.0,
+        seed=3,
+        started=STARTED,
+        host="n",
+        decoder="learned",
+    )
+    assert read(write(learned, tmp_path)).decoder == "learned"
+
+
+def test_a_file_from_before_the_decoder_column_reads_as_matching(tmp_path: Path) -> None:
+    path = write(RESULT, tmp_path)
+    table = pq.read_table(path)
+    pq.write_table(table.drop_columns(["decoder"]), path)
+    assert read(path).decoder == "pymatching"
 
 
 def test_finished_is_the_start_plus_the_seconds_in_utc(tmp_path: Path) -> None:
