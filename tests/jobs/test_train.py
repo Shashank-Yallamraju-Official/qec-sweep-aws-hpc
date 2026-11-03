@@ -179,3 +179,10 @@ def test_a_run_may_wait_for_another_job(jobs: Path) -> None:
     result = train(jobs, "-a", "55")
     assert result.returncode == 0, result.stderr
     assert "--dependency=afterok:55" in submissions(jobs)[0]
+
+
+def test_the_learning_rate_must_be_a_number(jobs: Path) -> None:
+    result = train(jobs, "-l", "fast")
+    assert result.returncode == 2
+    assert "learning rate" in result.stderr
+    assert not (jobs.parent / "calls").exists()

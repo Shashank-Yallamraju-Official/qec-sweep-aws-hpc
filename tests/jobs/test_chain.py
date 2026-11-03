@@ -150,27 +150,58 @@ def test_the_chain_record_names_every_child_run(jobs: Path) -> None:
     assert record(matching_dir)["noise"] == "correlated"
 
 
-def test_the_report_job_compares_the_two_evaluations(jobs: Path, tmp_path: Path) -> None:
+def test_the_report_job_stages_the_evaluations_and_compares_them(
+    jobs: Path, tmp_path: Path
+) -> None:
     run_dir = tmp_path / "chain"
-    (run_dir / "report").mkdir(parents=True)
+    run_dir.mkdir()
+    evaluations = tmp_path / "evaluations"
+    for name in ("a", "b"):
+        (evaluations / name / "cells").mkdir(parents=True)
+        (evaluations / name / "cells" / "d3_p0.001_s1000.parquet").write_text(name)
+        (evaluations / name / "cells" / "d5_p0.001_s1000.parquet.partial").write_text("x")
+        (evaluations / name / "run.json").write_text("{}")
     job_env = env(
         jobs,
+        SLURMD_NODENAME="node-3",
         RUN_DIR=str(run_dir),
         REPORT_IMAGE="/scratch/images/train.sif",
-        MATCHING="/scratch/tester/evaluations/a",
-        LEARNED="/scratch/tester/evaluations/b",
+        MATCHING=str(evaluations / "a"),
+        LEARNED=str(evaluations / "b"),
     )
     result = subprocess.run(
         ["bash", jobs / "report.sbatch"], env=job_env, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+    staged = run_dir / "staged" / "evaluations"
+    assert (staged / "a" / "d3_p0.001_s1000.parquet").read_text() == "a"
+    assert (staged / "b" / "run.json").exists()
+    assert not list(staged.rglob("*.partial"))
     compare, plot = (jobs.parent / "calls").read_text().splitlines()
     assert compare.startswith(
         "apptainer exec --bind /scratch /scratch/images/train.sif results-compare "
     )
-    assert "/scratch/tester/evaluations/a /scratch/tester/evaluations/b" in compare
+    assert f"{staged / 'a'} {staged / 'b'}" in compare
     assert f"--out {run_dir}/report/comparison.parquet" in compare
     assert plot.startswith("apptainer exec --bind /scratch /scratch/images/train.sif decoder-plot ")
+    assert f"{staged / 'a'} {staged / 'b'}" in plot
     assert f"--out {run_dir}/report/decoders.png" in plot
     assert (run_dir / "report" / "comparison.txt").exists()
     assert (run_dir / "report" / "decoders.txt").exists()
+    assert (run_dir / "nodes" / "node-3").exists()
+
+
+def test_two_training_cells_of_one_distance_are_refused(jobs: Path) -> None:
+    result = chain(jobs, "5:0.001", "5:0.005")
+    assert result.returncode == 2
+    assert "distance 5" in result.stderr
+    assert not (jobs.parent / "calls").exists()
+
+
+def test_the_shot_counts_must_be_numbers(jobs: Path) -> None:
+    command: list[str | Path] = ["bash", jobs / "chain.sh", SWEEP_IMAGE, TRAIN_IMAGE]
+    command += ["s3://bucket", "sweep", "5k", "1000", "3:0.005"]
+    result = subprocess.run(command, env=env(jobs), capture_output=True, text=True, check=False)
+    assert result.returncode == 2
+    assert "shots" in result.stderr
+    assert not (jobs.parent / "calls").exists()
