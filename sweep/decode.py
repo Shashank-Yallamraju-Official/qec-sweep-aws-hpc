@@ -15,6 +15,7 @@ import stim
 from sweep.cell import Cell
 
 Z_95 = 1.96
+MATCHING = "pymatching"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class CellResult:
         started: When sampling began, in UTC, so a run's throughput and its slow
             tail can be read from the cells themselves.
         host: The machine that decoded it.
+        decoder: What decoded it: ``pymatching``, or ``learned`` for the trained model.
     """
 
     cell: Cell
@@ -37,6 +39,7 @@ class CellResult:
     seed: int
     started: datetime = field(default_factory=lambda: datetime.now(UTC))
     host: str = field(default_factory=socket.gethostname)
+    decoder: str = MATCHING
 
     @property
     def logical_error_rate(self) -> float:
