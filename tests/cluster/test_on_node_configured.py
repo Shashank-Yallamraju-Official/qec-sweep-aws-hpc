@@ -25,9 +25,11 @@ def bin_dir(tmp_path: Path) -> Path:
     return bin_dir
 
 
-def configure(bin_dir: Path, node_type: str) -> list[str]:
+def configure(bin_dir: Path, node_type: str | None) -> list[str]:
+    """Run the script as a node of a type; ``None`` is a node without ParallelCluster's file."""
     config = bin_dir.parent / "cfnconfig"
-    config.write_text(f'cfn_node_type="{node_type}"\n')
+    if node_type is not None:
+        config.write_text(f'cfn_node_type="{node_type}"\n')
     env = {
         **os.environ,
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
@@ -50,12 +52,4 @@ def test_a_compute_node_does_not(bin_dir: Path) -> None:
 
 
 def test_a_node_without_the_cluster_file_is_a_compute_node(bin_dir: Path) -> None:
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "STUB_LOG": str(bin_dir.parent / "calls"),
-        "CFNCONFIG": str(bin_dir.parent / "missing"),
-    }
-    result = subprocess.run(["bash", SCRIPT], env=env, capture_output=True, text=True, check=False)
-    assert result.returncode == 0, result.stderr
-    assert not (bin_dir.parent / "calls").exists()
+    assert configure(bin_dir, None) == []
