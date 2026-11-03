@@ -30,6 +30,33 @@ HeadNode:
       # Installs Apptainer and makes scratch writable; see the script.
       Script: s3://qec-sweep-results-523520772490/cluster/on-node-configured.sh
 
+# The graphical login node from the design: one node that runs for the cluster's life,
+# with Amazon DCV serving a desktop to a browser, so a scientist opens a GUI tool
+# beside the queues instead of on a laptop. ParallelCluster installs DCV and the
+# desktop itself; the configure script adds the tool. The session is opened without
+# SSH, through Session Manager, like everything else on this cluster.
+LoginNodes:
+  Pools:
+    - Name: login
+      Count: 1
+      InstanceType: t3.medium
+      Image: *x86-image
+      Networking:
+        SubnetIds:
+          - *subnet
+      # The port stays open to the world as ParallelCluster warns: a session is reached
+      # only through a one-time token that lives thirty seconds. No GPU, since the
+      # account has no GPU quota; DCV renders ParaView in software, enough to prove it.
+      Dcv:
+        Enabled: true
+      Iam:
+        # A login pool takes no S3Access, so the read on cluster/* comes as a policy.
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-results
+          - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-cluster-files
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      CustomActions: *configure
+
 Scheduling:
   Scheduler: slurm
   SlurmSettings:
