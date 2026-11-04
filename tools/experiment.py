@@ -4,8 +4,9 @@ A record is one Markdown file under ``experiments/``, numbered, its data in a
 frontmatter block and its prose under nine fixed headings in a fixed order; the
 process that fills it is the directory's README. ``new`` writes the next record
 from the template; ``check`` refuses a record that lacks a field or a heading, a
-closed one without its result, and a run commit that predates the commit which
-registered the record, which is the proof the prediction came first; ``index``
+closed one without its result, and a closed one whose Prediction differs from the
+one in the commit that registered the record, which is the proof the prediction came
+first and survives the rebase that merging rewrites commit ids with; ``index``
 rewrites the table in the README from the records' frontmatter, and ``check``
 fails while that table is stale.
 """
@@ -172,7 +173,10 @@ def index(directory: Path) -> Path:
 def _index_table(directory: Path) -> str:
     rows = []
     for path in records(directory):
-        r = read_record(path)
+        try:
+            r = read_record(path)
+        except ValueError:
+            continue
         cost = r.fields.get("cost_usd")
         rows.append(
             f"| [{r.id:02d}]({path.name}) | {r.title} | {r.status} | "
@@ -188,14 +192,17 @@ def check(directory: Path) -> list[str]:
     if not readme.exists() or INDEX_START not in readme.read_text():
         return [f"{README} with an index block is missing"]
     problems: list[str] = []
+    parsed: dict[Path, Record] = {}
+    for path in records(directory):
+        try:
+            parsed[path] = read_record(path)
+        except ValueError as error:
+            problems.append(f"{path.name}: {error}")
+    ids = {r.id for r in parsed.values() if isinstance(r.fields.get("id"), int)}
     seen: dict[int, str] = {}
-    for path in records(directory):
-        problems.extend(f"{path.name}: {p}" for p in _check_record(path, seen))
-    ids = set(seen)
-    for path in records(directory):
-        successor = read_record(path).fields.get("next")
-        if successor is not None and int(str(successor)) not in ids:
-            problems.append(f"{path.name}: next names {successor}, which is no record")
+    for path, record in parsed.items():
+        problems.extend(f"{path.name}: {p}" for p in _check_record(record, seen))
+        problems.extend(f"{path.name}: {p}" for p in _check_next(record, ids))
     text = readme.read_text()
     start, end = text.index(INDEX_START) + len(INDEX_START), text.index(INDEX_END)
     if text[start:end].strip() != _index_table(directory):
@@ -203,11 +210,17 @@ def check(directory: Path) -> list[str]:
     return problems
 
 
-def _check_record(path: Path, seen: dict[int, str]) -> list[str]:
-    try:
-        record = read_record(path)
-    except ValueError as error:
-        return [str(error)]
+def _check_next(record: Record, ids: set[int]) -> list[str]:
+    successor = record.fields.get("next")
+    if successor is None:
+        return []
+    if not isinstance(successor, int):
+        return [f"next names '{successor}', which is no record number"]
+    return [] if successor in ids else [f"next names {successor:02d}, which is no record"]
+
+
+def _check_record(record: Record, seen: dict[int, str]) -> list[str]:
+    path = record.path
     problems = [f"{f} is missing from the frontmatter" for f in FIELDS if f not in record.fields]
     if problems:
         return problems
@@ -250,11 +263,11 @@ def _check_closed(record: Record) -> list[str]:
             "the record was never committed, so nothing proves its prediction came first"
         )
         return problems
-    problems.extend(
-        f"commit {c[:7]} is before the record was registered in {registered[:7]}"
-        for c in record.commits
-        if not _is_ancestor(record.path.parent, registered, c)
-    )
+    then = _registered_prediction(record.path, registered)
+    if then != record.sections.get("Prediction", ""):
+        problems.append(
+            f"the Prediction changed since the record was registered in {registered[:7]}"
+        )
     return problems
 
 
@@ -263,16 +276,13 @@ def _register_commit(path: Path) -> str | None:
     return output.splitlines()[-1] if output else None
 
 
-def _is_ancestor(repo: Path, older: str, newer: str) -> bool:
-    return (
-        subprocess.run(
-            ["git", "merge-base", "--is-ancestor", older, newer],
-            cwd=repo,
-            check=False,
-            capture_output=True,
-        ).returncode
-        == 0
-    )
+def _registered_prediction(path: Path, commit: str) -> str:
+    # Read relative to the records' directory, so the proof survives a rebase that
+    # rewrites every commit id but not what the register commit holds at that path.
+    text = _git(path.parent, "show", f"{commit}:./{path.name}")
+    parts = re.split(r"^## (.+)$", text, flags=re.MULTILINE)
+    sections = dict(zip(parts[1::2], (body.strip() for body in parts[2::2]), strict=True))
+    return str(sections.get("Prediction", ""))
 
 
 def _git(repo: Path, *args: str) -> str:
