@@ -84,22 +84,23 @@ jobs:
               --dryrun true > dryrun.json || true
             jq -r '.message // empty, (.updateValidationErrors // [] | .[] | "\(.parameter): \(.message)")' dryrun.json
           }
+          settled() {
+            until s=$(pcluster describe-cluster --cluster-name "$CLUSTER" | jq -r .clusterStatus) \
+                  && [[ $s != UPDATE_IN_PROGRESS ]]; do sleep 30; done
+            echo "cluster $s"
+            [[ $s == UPDATE_COMPLETE ]]
+          }
           # A dry run tells the outcomes apart: nothing to change, a change to make, or a
-          # change to the login pool, which ParallelCluster allows only with the pool at zero.
+          # change to the login pool, which ParallelCluster allows only once no login node
+          # runs. Any other refusal stops here, with its reasons printed above.
           dryrun cluster/cluster.yaml
           if jq -e '.message | test("No changes found")' dryrun.json >/dev/null; then exit 0; fi
-          pool_change='[.updateValidationErrors // [] | .[] | .parameter] | any(startswith("LoginNodes"))'
-          if jq -e "$pool_change" dryrun.json >/dev/null; then
-            # The same configuration with the pool emptied; only the login pool has a Count.
-            sed 's/^\( *Count: *\)[0-9]\+/\10/' cluster/cluster.yaml > no-login.yaml
-            pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration no-login.yaml >/dev/null
-            until [[ $(pcluster describe-cluster --cluster-name "$CLUSTER" \
-                | jq -r .clusterStatus) == UPDATE_COMPLETE ]]; do
-              sleep 30
-            done
-            dryrun cluster/cluster.yaml
-          fi
-          jq -e '.message | test("would have succeeded")' dryrun.json >/dev/null
+          # shellcheck disable=SC2016 # the dollar is jq's, not the shell's
+          only_pool='(.updateValidationErrors // []) as $e | ($e | length) > 0
+            and all($e[]; .parameter | startswith("LoginNodes")) and all($e[]; .message | test("login nodes"))'
+          empty_pool=''
+          if jq -e "$only_pool" dryrun.json >/dev/null; then empty_pool=1
+          else jq -e '.message | test("would have succeeded")' dryrun.json >/dev/null; fi
           # Stopping the fleet ends every running job. Compute nodes stay up for ten
           # minutes after their last job, so a fleet with none is safely idle.
           busy=$(aws ec2 describe-instances \
@@ -112,9 +113,21 @@ jobs:
             exit 1
           fi
           fleet STOP STOPPED
+          if [[ -n $empty_pool ]]; then
+            # The configuration the cluster runs now, with its pool emptied, so this update
+            # changes nothing else: the push's previous commit is what the last deploy applied.
+            emptied='::error::the login pool was emptied and not refilled; re-run once the cause is fixed'
+            trap '[[ $? == 0 ]] || echo "$emptied"' EXIT
+            git fetch -q --depth 1 origin "${{ github.event.before }}"
+            git show FETCH_HEAD:cluster/cluster.yaml | sed 's/^\( *Count: *\)[0-9]\+/\10/' > no-login.yaml
+            pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration no-login.yaml >/dev/null
+            settled
+            # The update completes before the node has left the pool's load balancer, and
+            # ParallelCluster counts the node as running until it has.
+            until [[ $(pcluster describe-cluster --cluster-name "$CLUSTER" \
+                | jq '[.loginNodes[]? | .healthyNodes + .unhealthyNodes] | add // 0') == 0 ]]; do sleep 20; done
+          fi
           pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration cluster/cluster.yaml >/dev/null
-          until s=$(pcluster describe-cluster --cluster-name "$CLUSTER" | jq -r .clusterStatus) \
-                && [[ $s != UPDATE_IN_PROGRESS ]]; do sleep 30; done
-          echo "cluster $s"
+          if settled; then applied=0; else applied=1; fi
           fleet START RUNNING
-          [[ $s == UPDATE_COMPLETE ]]
+          exit $applied
