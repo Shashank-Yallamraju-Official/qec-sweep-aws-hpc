@@ -139,6 +139,8 @@ def test_rejects_known_trailers(trailer: str) -> None:
     assert "trailer" in problem
 
 
-@pytest.mark.parametrize("scope", ["hooks", "ci", "docs", "decoder", "results", "models", "web"])
+@pytest.mark.parametrize(
+    "scope", ["hooks", "ci", "docs", "decoder", "results", "models", "web", "experiments"]
+)
 def test_accepts_the_planned_scopes(scope: str) -> None:
     assert check(f"fix({scope}): add x") == []

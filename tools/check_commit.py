@@ -31,6 +31,7 @@ SCOPES = frozenset(
         "hooks",
         "ci",
         "docs",
+        "experiments",
     }
 )
 SUBJECT_LIMIT = 60
