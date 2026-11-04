@@ -10,9 +10,10 @@ the weights of the best epoch; the epoch count is then a cap. The device is a
 parameter so the same call moves to a GPU queue the day one exists.
 
 Launched once per node with ``RANK``, ``WORLD_SIZE``, ``MASTER_ADDR`` and
-``MASTER_PORT`` set, the ranks train one model between them: each holds a share of
-the training shots and the gradients are averaged every step, so the result is one
-model trained on every shot, in less wall-clock time.
+``MASTER_PORT`` set, the ranks train one model between them: each reads only its
+share of the sample files, so a set of millions of shots never sits whole in one
+node's memory, holds a tenth of its own shots out, and the gradients are averaged
+every step, so the result is one model trained on every shot, in less wall-clock time.
 """
 
 from __future__ import annotations
@@ -126,18 +127,28 @@ class Training:
     torch: str
 
 
-def load_samples(samples_dir: Path) -> tuple[Cell, tuple[str, ...], Tensor, Tensor]:
-    """Every sample file under a directory as one set of detectors and flips.
+def load_samples(
+    samples_dir: Path, world: World = ALONE
+) -> tuple[Cell, tuple[str, ...], Tensor, Tensor]:
+    """This rank's share of the sample files under a directory, as detectors and flips.
+
+    The files are shared out round robin by rank, so no rank reads more than it
+    trains on; the names returned are every file's, since the record describes the
+    whole set.
 
     Raises:
         FileNotFoundError: When the directory holds no sample file.
-        ValueError: When the files were not all sampled from one cell.
+        ValueError: When the files were not all sampled from one cell, or there are
+            fewer of them than ranks.
     """
     paths = sorted(samples_dir.glob("*.npz"))
     if not paths:
         msg = f"no samples under {samples_dir}"
         raise FileNotFoundError(msg)
-    loaded = [read(p) for p in paths]
+    if len(paths) < world.size:
+        msg = f"{len(paths)} sample files under {samples_dir} are fewer than {world.size} ranks"
+        raise ValueError(msg)
+    loaded = [read(p) for p in paths[world.rank :: world.size]]
     cells = {s.cell for s in loaded}
     if len(cells) != 1:
         msg = f"the samples under {samples_dir} are not of one cell: {sorted(map(str, cells))}"
@@ -197,18 +208,20 @@ def train(  # noqa: PLR0913
     ``epochs`` is the number of passes, or with a ``patience`` the most passes: the
     held-out loss is scored after each and training stops, keeping the best epoch's
     weights, once it has gone that many epochs without improving.
-    With several ranks each takes every ``size``-th training shot; the model and
-    record are written by rank zero, and every rank returns the same record.
+    With several ranks each reads its own share of the files and trains on as many
+    shots as the rank with the fewest; the model and record are written by rank
+    zero, and every rank returns the same record.
     """
     started = time.perf_counter()
     world = world or World.from_environment()
-    cell, names, detectors, flips = load_samples(samples_dir)
     where = torch.device(device)
-    (train_x, train_y), (held_x, held_y) = split(detectors.to(where), flips.to(where), seed, world)
-    torch.manual_seed(seed)
-    model = build(cell, hidden=hidden, layers=layers).to(where)
     if world.shared:
         dist.init_process_group(BACKENDS[where.type], rank=world.rank, world_size=world.size)
+    cell, names, detectors, flips = load_samples(samples_dir, world)
+    (train_x, train_y), (held_x, held_y) = split(detectors.to(where), flips.to(where), seed)
+    train_x, train_y = _equalise(train_x, train_y, world)
+    torch.manual_seed(seed)
+    model = build(cell, hidden=hidden, layers=layers).to(where)
     settings = Settings(seed, epochs, patience, learning_rate, batch)
     epoch_losses, held_losses = _fit(model, (train_x, train_y), (held_x, held_y), settings, world)
     loss, accuracy = score(model, train_x, train_y, world)
@@ -216,8 +229,8 @@ def train(  # noqa: PLR0913
     record = Training(
         cell=cell,
         samples=names,
-        shots=len(flips),
-        held_out=len(held_y),
+        shots=_total(len(flips), world, where),
+        held_out=_total(len(held_y), world, where),
         seed=seed,
         epochs=len(epoch_losses),
         max_epochs=epochs,
@@ -257,21 +270,33 @@ class Settings:
 
 
 Split = tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor]]
-"""This rank's training detectors and flips, then the held-out ones every rank shares."""
+"""This rank's training detectors and flips, then its held-out ones."""
 
 
-def split(detectors: Tensor, flips: Tensor, seed: int, world: World) -> Split:
-    """Hold a tenth of the shots out, then give this rank its share of the rest.
-
-    Every rank gets the same number of shots, so every rank takes the same number
-    of steps: the ranks average gradients at each step, and one with a step more
-    than the others would wait for it forever. Up to ``size - 1`` shots go unused.
-    """
+def split(detectors: Tensor, flips: Tensor, seed: int) -> Split:
+    """Hold a tenth of the shots out, in an order the seed fixes."""
     order = torch.randperm(len(flips), generator=torch.Generator().manual_seed(seed))
     held = round(len(flips) * HELD_OUT)
     held_idx, training = order[:held], order[held:]
-    share = training[world.rank :: world.size][: len(training) // world.size]
-    return (detectors[share], flips[share]), (detectors[held_idx], flips[held_idx])
+    return (detectors[training], flips[training]), (detectors[held_idx], flips[held_idx])
+
+
+def _equalise(detectors: Tensor, flips: Tensor, world: World) -> tuple[Tensor, Tensor]:
+    # Every rank takes the same number of steps: the ranks average gradients at each
+    # step, and one with a step more than the others would wait for it forever.
+    if not world.shared:
+        return detectors, flips
+    count = torch.tensor([len(flips)], device=detectors.device)
+    dist.all_reduce(count, op=dist.ReduceOp.MIN)
+    return detectors[: int(count)], flips[: int(count)]
+
+
+def _total(count: int, world: World, where: torch.device) -> int:
+    if not world.shared:
+        return count
+    total = torch.tensor([count], device=where)
+    dist.all_reduce(total)
+    return int(total)
 
 
 Set = tuple[Tensor, Tensor]
