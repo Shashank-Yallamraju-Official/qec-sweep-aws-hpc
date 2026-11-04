@@ -79,11 +79,26 @@ jobs:
               sleep 15
             done
           }
-          # A dry run tells the two outcomes apart: nothing to change, or a change to make.
-          pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration cluster/cluster.yaml \
-            --dryrun true > dryrun.json || true
-          jq -r '.message // empty, (.updateValidationErrors // [] | .[] | "\(.parameter): \(.message)")' dryrun.json
+          dryrun() {
+            pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration "$1" \
+              --dryrun true > dryrun.json || true
+            jq -r '.message // empty, (.updateValidationErrors // [] | .[] | "\(.parameter): \(.message)")' dryrun.json
+          }
+          # A dry run tells the outcomes apart: nothing to change, a change to make, or a
+          # change to the login pool, which ParallelCluster allows only with the pool at zero.
+          dryrun cluster/cluster.yaml
           if jq -e '.message | test("No changes found")' dryrun.json >/dev/null; then exit 0; fi
+          pool_change='[.updateValidationErrors // [] | .[] | .parameter] | any(startswith("LoginNodes"))'
+          if jq -e "$pool_change" dryrun.json >/dev/null; then
+            # The same configuration with the pool emptied; only the login pool has a Count.
+            sed 's/^\( *Count: *\)[0-9]\+/\10/' cluster/cluster.yaml > no-login.yaml
+            pcluster update-cluster --cluster-name "$CLUSTER" --cluster-configuration no-login.yaml >/dev/null
+            until [[ $(pcluster describe-cluster --cluster-name "$CLUSTER" \
+                | jq -r .clusterStatus) == UPDATE_COMPLETE ]]; do
+              sleep 30
+            done
+            dryrun cluster/cluster.yaml
+          fi
           jq -e '.message | test("would have succeeded")' dryrun.json >/dev/null
           # Stopping the fleet ends every running job. Compute nodes stay up for ten
           # minutes after their last job, so a fleet with none is safely idle.
