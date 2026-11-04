@@ -16,6 +16,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, get_args
 
 LIFELINES = (
     "Researcher",
@@ -35,6 +36,11 @@ MARKS = {
 }
 
 
+Kind = Literal["request", "reply", "result"]
+KINDS: tuple[Kind, ...] = get_args(Kind)
+MIMES = {".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+
+
 @dataclass(frozen=True)
 class Message:
     """One arrow: who acts on whom, what the label says, and what kind of arrow it is.
@@ -43,35 +49,35 @@ class Message:
         sender: Index of the lifeline the arrow leaves.
         receiver: Index of the lifeline it reaches; the sender itself for a self-message.
         label: The words above the arrow.
-        reply: Whether it answers an earlier message; drawn dashed with an open head.
-        result: Whether a result is on its way to the reader; drawn in the accent.
+        kind: ``request`` for one system acting on another, ``reply`` for an answer,
+            drawn dashed with an open head, or ``result`` for a result on its way to
+            the reader, drawn in the accent.
     """
 
     sender: int
     receiver: int
     label: str
-    reply: bool = False
-    result: bool = False
+    kind: Kind = "request"
 
-    @property
-    def kind(self) -> str:
-        """Which arrowhead the message takes: ``request``, ``reply`` or ``result``."""
-        return "reply" if self.reply else ("result" if self.result else "request")
+    def __post_init__(self) -> None:
+        if self.kind not in KINDS:
+            msg = f"kind must be one of {', '.join(KINDS)}, not {self.kind}"
+            raise ValueError(msg)
 
 
 MESSAGES = (
     Message(0, 1, "open pull request"),
     Message(1, 2, "run workflows"),
     Message(2, 3, "validate cluster.yaml, run smoke job"),
-    Message(2, 1, "checks pass", reply=True),
+    Message(2, 1, "checks pass", kind="reply"),
     Message(0, 1, "merge"),
     Message(1, 2, "run deploy workflow"),
     Message(2, 3, "install job scripts, update cluster"),
     Message(0, 3, "sbatch a sweep"),
     Message(3, 3, "boot nodes, decode cells, scale to zero"),
-    Message(3, 4, "put run.json and cells", result=True),
-    Message(2, 5, "publish site with a snapshot from S3", result=True),
-    Message(0, 5, "compare two runs", result=True),
+    Message(3, 4, "put run.json and cells", kind="result"),
+    Message(2, 5, "publish site with a snapshot from S3", kind="result"),
+    Message(0, 5, "compare two runs", kind="result"),
 )
 PHASES = (("Change", 0, 3), ("Ship", 4, 6), ("Run", 7, 9), ("Compare", 10, 11))
 PALETTES = {
@@ -109,11 +115,15 @@ def embed(path: Path) -> str:
 
     Raises:
         FileNotFoundError: Naming the mark that is missing.
+        ValueError: For a file type no mark is kept as.
     """
     if not path.exists():
         msg = f"no mark at {path}"
         raise FileNotFoundError(msg)
-    mime = "image/jpeg" if path.suffix in {".jpg", ".jpeg"} else "image/svg+xml"
+    if path.suffix not in MIMES:
+        msg = f"no mark can be a {path.suffix.lstrip('.')} file: {path}"
+        raise ValueError(msg)
+    mime = MIMES[path.suffix]
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode()}"
 
 
@@ -184,7 +194,7 @@ def _messages(theme: str, c: dict[str, str]) -> list[str]:
         y = TOP + STEP * i
         parts.append(_step(98, y, i + 1, c["num"]))
         xa, xb = X[m.sender], X[m.receiver]
-        stroke = c["accent"] if m.result else c["arrow"]
+        stroke = c["accent"] if m.kind == "result" else c["arrow"]
         marker = f'marker-end="url(#{m.kind}-{theme})"'
         if m.sender == m.receiver:
             turn = f"M{xa},{y} L{xa + 70},{y} L{xa + 70},{y + 22} L{xa + 6},{y + 22}"
@@ -194,8 +204,8 @@ def _messages(theme: str, c: dict[str, str]) -> list[str]:
             parts.append(_text(xa + 82, y + 16, m.label, c["msg"], 12))
             continue
         gap = 8 if xb > xa else -8
-        width = 1.5 if m.result else 1.2
-        dash = "5 4" if m.reply else None
+        width = 1.5 if m.kind == "result" else 1.2
+        dash = "5 4" if m.kind == "reply" else None
         parts.append(
             _line(xa + gap, y, xb - gap, y, stroke=stroke, width=width, dash=dash, marker=marker)
         )
@@ -286,7 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: ``[--out dir] [--marks dir]``; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status: 0 on success, 2 when a mark is missing.
+        Exit status: 0 on success, 2 when a mark is missing or of an unknown type.
     """
     parser = argparse.ArgumentParser(
         prog="loop-figure", description="draw the readme's loop figure"
@@ -298,14 +308,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--marks", type=Path, default=Path("docs/figures/marks"), help="directory of the marks"
     )
     args = parser.parse_args(argv)
+    try:
+        figures = {theme: draw(theme, args.marks) for theme in PALETTES}
+    except (FileNotFoundError, ValueError) as error:
+        print(f"loop-figure: {error}", file=sys.stderr)
+        return 2
+    # Both themes or neither: the README shows one or the other by the reader's setting.
     args.out.mkdir(parents=True, exist_ok=True)
-    for theme in PALETTES:
+    for theme, svg in figures.items():
         path = args.out / f"loop-{theme}.svg"
-        try:
-            path.write_text(draw(theme, args.marks) + "\n")
-        except FileNotFoundError as error:
-            print(f"loop-figure: {error}", file=sys.stderr)
-            return 2
+        path.write_text(svg + "\n")
         print(path)
     return 0
 
