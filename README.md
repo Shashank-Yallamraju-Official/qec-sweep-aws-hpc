@@ -17,6 +17,8 @@ The loop was then measured and shortened. A timer reads, from those records and 
 
 The decoder loop closes the same way. Stim samples labelled syndrome histories as an array, a recurrent decoder trains on them with one rank per node, and the trained model is a choice of the sweep's cell contract beside PyMatching, so both decoders are judged through the same array, records, comparison and plot. One chain submits all of it wired by dependency, from the first sample to the comparison plot with no hand in between.
 
+The last stage uses the platform the way a scientist would and writes down how. An experiment is one pass of a fixed loop, recorded under [`experiments/`](experiments/README.md): where things stand, read from the last chain's records by `decoder-diagnose`; the causes the numbers support; the candidate changes with their predicted effect and cost; the one chosen, by the researcher; a prediction with its threshold and budget, committed before anything runs; then the run, the result against the prediction, and what follows. A commit hook refuses a record with a section missing or a result whose commits predate its prediction. The process itself is versioned in the directory's README, with a table of what changed and which experiment made it change. The first pass asked whether the stage 12 decoder was short of data or of capacity, and answered it: at 5,000,000 training shots the same model is below matching at every rate.
+
 ## Numbers
 
 Each stage ends with one measurement. The full account of each, with what it is compared against and what was learned, is in the plan's table; these are the headlines.
@@ -42,7 +44,7 @@ The account said no twice. Every HPC and accelerated-instance quota in the proje
 
 The platform's defaults fought the work in small ways that each cost an afternoon. Slurm hands tasks to nodes that are still powering up, so a sixteen-node run started mid-boot measured provisioning instead of decoding. Stim and PyMatching ship no arm64 wheels, so the Graviton image compiles them. The three-minute scale-down that made a sweep cheap made a chained run slow: nodes idled past it while a job waited on a dependency and had to boot again. DCV accepts a certificate only at mode 600 and otherwise falls back to its own without a word.
 
-The decoder did not win. A two-layer LSTM of 64 units, the published recipe, matches PyMatching at distance 3 and loses to it at distance 5 under both noise models, with training accuracy equal to held-out accuracy: underfit, not overfit. The plan records the ratios with their intervals rather than tuning until the row reads well; the loop that trains, evaluates and compares a decoder without a hand in between is the deliverable, and it works.
+The decoder did not win at first. A two-layer LSTM of 64 units, the published recipe, matched PyMatching at distance 3 and lost to it at distance 5 under both noise models on 200,000 training shots and ten epochs, with training accuracy equal to held-out accuracy: underfit, not overfit. The plan recorded the ratios with their intervals rather than tuning until the row read well. The research loop of stage 16 then asked the question that result posed, data or capacity, and registered a prediction before running: trained on 200,000, 1,000,000 and 5,000,000 shots until its held-out loss stalled, the same model went from 3.05 times matching's error rate to 0.90, and below matching at every rate, including the two it never trained on, which the prediction had said would not happen. One training seed so far; the process now demands a second before a win is called.
 
 ## Map
 
@@ -58,4 +60,5 @@ The decoder did not win. A two-layer LSTM of 64 units, the published recipe, mat
 | [`cluster/`](cluster/README.md) | The ParallelCluster configurations, x86 and Graviton, the AMI builds, the login node's desktop, and the script each node runs as it boots |
 | [`image/`](image/README.md) | The Apptainer definitions CI builds into the images the jobs pull, for x86 and arm64 |
 | [`infra/`](infra/README.md) | Terraform for the bucket, the node roles, the CI runners, the Systems Manager documents and the cost guardrails |
-| [`tools/`](tools/README.md) | The commit-message rule, the cost report, the process report, the loop timer, the before-and-after plot and the figure above |
+| [`tools/`](tools/README.md) | The commit-message rule, the cost report, the process report, the loop timer, the before-and-after plot, the figure above and the experiment records' tool |
+| [`experiments/`](experiments/README.md) | The research loop: the process, versioned, and one record per experiment with its prediction committed before its run |
