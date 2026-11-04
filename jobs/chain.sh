@@ -4,18 +4,19 @@
 # generate array and a training job on its samples; then the evaluation cells decoded
 # by matching and, once every model is written, by the learned decoder; then a report
 # that compares the two evaluations, and a sync that copies the report to S3.
-# usage: chain.sh [-s seed] [-n noise model] [-c chunks] [-e epochs] [-N train nodes] [-r noise rate]... <sweep image> <train image> s3://bucket <queue> <train shots per chunk> <evaluate shots> <distance:noise>...
+# usage: chain.sh [-s seed] [-n noise model] [-c chunks] [-e epochs] [-P patience] [-N train nodes] [-r noise rate]... <sweep image> <train image> s3://bucket <queue> <train shots per chunk> <evaluate shots> <distance:noise>...
 # Each training cell is one distance at one noise rate; the evaluation decodes every
 # distance at every -r rate, or at the training rates when none is given. Every child
 # run names this chain as a parent, and the chain's record names every child.
 set -euo pipefail
-seed=0 noise=depolarising chunks=1 epochs=10 train_nodes=1 rates=()
-while getopts 's:n:c:e:N:r:' option; do
+seed=0 noise=depolarising chunks=1 epochs=10 patience='' train_nodes=1 rates=()
+while getopts 's:n:c:e:P:N:r:' option; do
   case $option in
     s) seed=$OPTARG ;;
     n) noise=$OPTARG ;;
     c) chunks=$OPTARG ;;
     e) epochs=$OPTARG ;;
+    P) patience=$OPTARG ;;
     N) train_nodes=$OPTARG ;;
     r) rates+=("$OPTARG") ;;
     *) exit 2 ;;
@@ -61,7 +62,7 @@ for cell in "$@"; do
     "$sweep_image" "$bucket/generate" "$queue" "$train_shots" "$cell")
   generate_uri=$bucket/generate/$(basename "$generate_dir")
   sleep 1
-  read -r train_dir train_job _ < <("$jobs/train.sh" -s "$seed" -e "$epochs" -n "$train_nodes" -a "${generate_array#array=}" \
+  read -r train_dir train_job _ < <("$jobs/train.sh" -s "$seed" -e "$epochs" ${patience:+-P "$patience"} -n "$train_nodes" -a "${generate_array#array=}" \
     -p "$chain_uri" -p "$generate_uri" "$train_image" "$bucket/train" "$generate_dir/samples" "$queue")
   train_uri=$bucket/train/$(basename "$train_dir")
   generate_runs=$(jq --arg uri "$generate_uri" '. + [$uri]' <<<"$generate_runs")
@@ -89,7 +90,7 @@ sync=$(sbatch --parsable --partition "$queue" --dependency="afterany:$report" \
   --output "$run_dir/logs/sync.out" "$jobs/sync.sbatch")
 jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$sweep_image" --arg digest "$sweep_digest" \
   --arg train_image "$train_image" --arg train_digest "$train_digest" --arg commit "$commit" --arg config_hash "$config_hash" \
-  --arg idle "$idle" --arg noise "$noise" --arg submitted "$submitted" --arg report "$report" --arg sync "$sync" \
+  --arg idle "$idle" --arg noise "$noise" --arg submitted "$submitted" --arg report "$report" --arg sync "$sync" --arg patience "$patience" \
   --arg matching "$bucket/evaluations/$(basename "$matching_dir")" --arg learned "$bucket/evaluations/$(basename "$learned_dir")" \
   --argjson seed "$seed" --argjson chunks "$chunks" --argjson epochs "$epochs" --argjson train_nodes "$train_nodes" \
   --argjson train_shots "$train_shots" --argjson evaluate_shots "$evaluate_shots" \
@@ -103,7 +104,7 @@ jq -n --arg run "$(basename "$run_dir")" --arg queue "$queue" --arg image "$swee
     jobs: {report: ($report | tonumber? // .), sync: ($sync | tonumber? // .)},
     seed: $seed, noise: $noise, cells: $cells, rates: $rates,
     shots: {generate: $train_shots, chunks: $chunks, evaluate: $evaluate_shots},
-    epochs: $epochs, train_nodes: $train_nodes,
+    epochs: $epochs, patience: ($patience | if . == "" then null else tonumber end), train_nodes: $train_nodes,
     children: {generate: $generate_runs, train: $train_runs, evaluations: {pymatching: $matching, learned: $learned}},
     submitted: $submitted}' > "$run_dir/run.json"
 echo "$run_dir report=$report sync=$sync"

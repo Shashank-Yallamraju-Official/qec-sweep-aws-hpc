@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 
 from decoder.model import load  # noqa: E402
 from decoder.sample import sample, write  # noqa: E402
-from decoder.train import Training, World, main, split, train  # noqa: E402
+from decoder.train import Training, World, main, score, split, train  # noqa: E402
 from sweep.cell import Cell  # noqa: E402
 
 CELL = Cell(distance=3, noise=0.05, shots=150)
@@ -132,3 +132,35 @@ def test_split_gives_every_rank_the_same_number_of_shots() -> None:
     (second, _), _ = split(detectors, flips, 0, World(1, 2))
     assert len(held) == 10
     assert len(first) == len(second) == 45
+
+
+def test_train_stops_when_the_held_out_loss_stalls(samples: Path, tmp_path: Path) -> None:
+    record = train(
+        samples, tmp_path / "model", seed=1, epochs=40, patience=1, hidden=8, layers=1, batch=32
+    )
+    assert record.max_epochs == 40
+    assert record.patience == 1
+    assert record.epochs < 40
+    assert len(record.held_out_losses) == record.epochs == len(record.epoch_losses)
+    assert record.held_out_loss == pytest.approx(min(record.held_out_losses))
+
+
+def test_train_without_patience_runs_every_epoch(samples: Path, tmp_path: Path) -> None:
+    record = train(samples, tmp_path / "model", epochs=3, hidden=8, layers=1)
+    assert record.patience is None
+    assert record.epochs == record.max_epochs == 3
+
+
+def test_score_in_batches_is_the_one_pass_score(samples: Path, tmp_path: Path) -> None:
+    train(samples, tmp_path / "model", epochs=1, hidden=8, layers=1)
+    model = load(tmp_path / "model" / "decoder.pt")
+    shots = sample(CELL, seed=9)
+    detectors, flips = torch.from_numpy(shots.detectors), torch.from_numpy(shots.flips)
+    assert score(model, detectors, flips, batch=7) == pytest.approx(score(model, detectors, flips))
+
+
+def test_main_takes_a_patience(samples: Path, tmp_path: Path) -> None:
+    out = tmp_path / "model"
+    argv = ["--samples", str(samples), "--out", str(out), "--epochs", "30", "--patience", "1"]
+    assert main([*argv, "--hidden", "8", "--layers", "1"]) == 0
+    assert json.loads((out / "train.json").read_text())["patience"] == 1

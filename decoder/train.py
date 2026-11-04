@@ -4,8 +4,10 @@ One call reads every ``.npz`` a generate run wrote for one cell, holds a tenth o
 the shots back, fits the model by mini-batched Adam on the binary cross-entropy of
 the observable flip, saves the model and writes a ``train.json`` beside it that
 says what was trained on what, how well it did on the held-out shots, and where
-and how long it ran. The device is a parameter so the same call moves to a GPU
-queue the day one exists.
+and how long it ran. Given a patience, the held-out loss is scored after every
+epoch and training stops once it has not improved for that many epochs, keeping
+the weights of the best epoch; the epoch count is then a cap. The device is a
+parameter so the same call moves to a GPU queue the day one exists.
 
 Launched once per node with ``RANK``, ``WORLD_SIZE``, ``MASTER_ADDR`` and
 ``MASTER_PORT`` set, the ranks train one model between them: each holds a share of
@@ -37,6 +39,8 @@ from sweep.cell import Cell
 MODEL = "decoder.pt"
 RECORD = "train.json"
 HELD_OUT = 0.1
+SCORE_BATCH = 4096
+"""Shots scored per forward pass, so a set of millions is scored in bounded memory."""
 BACKENDS = {"cpu": "gloo", "cuda": "nccl"}
 
 
@@ -83,11 +87,14 @@ class Training:
         shots: Shots across all the files.
         held_out: Shots kept back from training and scored at the end.
         seed: The seed that fixed the split, the initial weights and the batches.
-        epochs: Passes over the training shots.
+        epochs: Passes made over the training shots.
+        max_epochs: The most passes allowed; fewer are made when the held-out loss stalls.
+        patience: Epochs without a better held-out loss before stopping; ``None`` never stops early.
         learning_rate: Adam's step size.
         batch: Shots per step, on each rank.
         ranks: Processes the training was spread over.
         epoch_losses: Mean training loss after each epoch, over every rank's shots.
+        held_out_losses: Mean held-out loss after each epoch.
         loss: Mean training loss after the last epoch.
         accuracy: Fraction of training shots the model calls right at the end.
         held_out_loss: Mean loss on the held-out shots.
@@ -103,10 +110,13 @@ class Training:
     held_out: int
     seed: int
     epochs: int
+    max_epochs: int
+    patience: int | None
     learning_rate: float
     batch: int
     ranks: int
     epoch_losses: tuple[float, ...]
+    held_out_losses: tuple[float, ...]
     loss: float
     accuracy: float
     held_out_loss: float
@@ -138,20 +148,29 @@ def load_samples(samples_dir: Path) -> tuple[Cell, tuple[str, ...], Tensor, Tens
 
 
 def score(
-    model: RecurrentDecoder, detectors: Tensor, flips: Tensor, world: World = ALONE
+    model: RecurrentDecoder,
+    detectors: Tensor,
+    flips: Tensor,
+    world: World = ALONE,
+    batch: int = SCORE_BATCH,
 ) -> tuple[float, float]:
     """Mean loss and accuracy of the model on a set, without tracking gradients.
 
-    With several ranks each scores its own shots and the means are taken over all of them.
+    The set is scored a batch at a time, so its size is bounded by the data and not by
+    the model's state. With several ranks each scores its own shots and the means are
+    taken over all of them.
     """
     model.eval()
+    sums = torch.zeros(3, device=detectors.device)
     with torch.no_grad():
-        logits = model(detectors)
-        loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, flips.to(torch.float32), reduction="sum"
-        )
-        right = ((logits > 0).to(torch.uint8) == flips).to(torch.float32).sum()
-    sums = torch.tensor([float(loss), float(right), float(len(flips))], device=detectors.device)
+        for rows in torch.split(torch.arange(len(flips), device=detectors.device), batch):
+            logits = model(detectors[rows])
+            target = flips[rows]
+            loss = nn.functional.binary_cross_entropy_with_logits(
+                logits, target.to(torch.float32), reduction="sum"
+            )
+            right = ((logits > 0).to(torch.uint8) == target).to(torch.float32).sum()
+            sums += torch.tensor([float(loss), float(right), float(len(rows))], device=sums.device)
     if world.shared:
         dist.all_reduce(sums)
     return float(sums[0] / sums[2]), float(sums[1] / sums[2])
@@ -163,6 +182,7 @@ def train(  # noqa: PLR0913
     *,
     seed: int = 0,
     epochs: int = 10,
+    patience: int | None = None,
     learning_rate: float = 1e-3,
     batch: int = 256,
     hidden: int = HIDDEN,
@@ -174,6 +194,9 @@ def train(  # noqa: PLR0913
 
     The seed fixes everything that could differ between two runs on one machine:
     which shots are held out, the initial weights and the order of the batches.
+    ``epochs`` is the number of passes, or with a ``patience`` the most passes: the
+    held-out loss is scored after each and training stops, keeping the best epoch's
+    weights, once it has gone that many epochs without improving.
     With several ranks each takes every ``size``-th training shot; the model and
     record are written by rank zero, and every rank returns the same record.
     """
@@ -186,21 +209,24 @@ def train(  # noqa: PLR0913
     model = build(cell, hidden=hidden, layers=layers).to(where)
     if world.shared:
         dist.init_process_group(BACKENDS[where.type], rank=world.rank, world_size=world.size)
-    settings = Settings(seed, epochs, learning_rate, batch)
-    epoch_losses = _fit(model, train_x, train_y, settings, world)
+    settings = Settings(seed, epochs, patience, learning_rate, batch)
+    epoch_losses, held_losses = _fit(model, (train_x, train_y), (held_x, held_y), settings, world)
     loss, accuracy = score(model, train_x, train_y, world)
-    held_loss, held_accuracy = score(model, held_x, held_y)
+    held_loss, held_accuracy = score(model, held_x, held_y, world)
     record = Training(
         cell=cell,
         samples=names,
         shots=len(flips),
         held_out=len(held_y),
         seed=seed,
-        epochs=epochs,
+        epochs=len(epoch_losses),
+        max_epochs=epochs,
+        patience=patience,
         learning_rate=learning_rate,
         batch=batch,
         ranks=world.size,
         epoch_losses=tuple(epoch_losses),
+        held_out_losses=tuple(held_losses),
         loss=loss,
         accuracy=accuracy,
         held_out_loss=held_loss,
@@ -221,10 +247,11 @@ def train(  # noqa: PLR0913
 
 @dataclass(frozen=True)
 class Settings:
-    """How the fit is run: the seed, the passes, the step size and the batch."""
+    """How the fit is run: the seed, the passes, the patience, the step size and the batch."""
 
     seed: int
     epochs: int
+    patience: int | None
     learning_rate: float
     batch: int
 
@@ -247,14 +274,21 @@ def split(detectors: Tensor, flips: Tensor, seed: int, world: World) -> Split:
     return (detectors[share], flips[share]), (detectors[held_idx], flips[held_idx])
 
 
+Set = tuple[Tensor, Tensor]
+"""Detectors and the flips that go with them."""
+
+
 def _fit(
-    model: RecurrentDecoder, train_x: Tensor, train_y: Tensor, settings: Settings, world: World
-) -> list[float]:
+    model: RecurrentDecoder, training: Set, held_out: Set, settings: Settings, world: World
+) -> tuple[list[float], list[float]]:
+    train_x, train_y = training
     trainee: nn.Module = DistributedDataParallel(model) if world.shared else model
     optimiser = torch.optim.Adam(trainee.parameters(), lr=settings.learning_rate)
     # Each rank shuffles its own share in its own order; the split is already shared.
     shuffler = torch.Generator().manual_seed(settings.seed * world.size + world.rank)
-    epoch_losses = []
+    epoch_losses: list[float] = []
+    held_losses: list[float] = []
+    best: dict[str, Tensor] = {}
     for _ in range(settings.epochs):
         trainee.train()
         sums = torch.zeros(2, device=train_x.device)
@@ -271,15 +305,25 @@ def _fit(
         if world.shared:
             dist.all_reduce(sums)
         epoch_losses.append(float(sums[0] / sums[1]))
-    return epoch_losses
+        # Every rank sees the same mean, so every rank stops on the same epoch.
+        held_losses.append(score(model, *held_out, world)[0])
+        if settings.patience is None:
+            continue
+        if held_losses[-1] == min(held_losses):
+            best = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        elif len(held_losses) - held_losses.index(min(held_losses)) > settings.patience:
+            break
+    if best:
+        model.load_state_dict(best)
+    return epoch_losses, held_losses
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Train from the command line and print where the record went.
 
     Args:
-        argv: ``--samples dir --out dir [--seed] [--epochs] [--learning-rate] [--batch]
-            [--hidden] [--layers] [--device]``; ``None`` reads ``sys.argv``. The world
+        argv: ``--samples dir --out dir [--seed] [--epochs] [--patience] [--learning-rate]
+            [--batch] [--hidden] [--layers] [--device]``; ``None`` reads ``sys.argv``. The world
             comes from ``RANK`` and ``WORLD_SIZE`` in the environment.
 
     Returns:
@@ -292,6 +336,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="directory for the model")
     parser.add_argument("--seed", type=int, default=0, help="split, weights and batch order")
     parser.add_argument("--epochs", type=int, default=10, help="passes over the training shots")
+    parser.add_argument(
+        "--patience", type=int, help="stop after this many epochs without a better held-out loss"
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3, help="Adam's step size")
     parser.add_argument("--batch", type=int, default=256, help="shots per step, per rank")
     parser.add_argument("--hidden", type=int, default=HIDDEN, help="LSTM state size")
@@ -304,6 +351,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.out,
             seed=args.seed,
             epochs=args.epochs,
+            patience=args.patience,
             learning_rate=args.learning_rate,
             batch=args.batch,
             hidden=args.hidden,
