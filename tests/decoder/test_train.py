@@ -144,6 +144,15 @@ def test_each_rank_loads_only_its_share_of_the_files(samples: Path) -> None:
     assert len(second) == 150
 
 
+def test_load_samples_refuses_mixed_cells_even_when_this_ranks_share_is_one(samples: Path) -> None:
+    for p in samples.glob("*.npz"):
+        p.unlink()
+    write(sample(CELL, seed=0), samples)
+    write(sample(Cell(5, 0.05, 20), seed=0), samples)
+    with pytest.raises(ValueError, match="one cell"):
+        load_samples(samples, World(0, 2))
+
+
 def test_load_samples_refuses_fewer_files_than_ranks(samples: Path) -> None:
     with pytest.raises(ValueError, match="fewer"):
         load_samples(samples, World(0, 3))

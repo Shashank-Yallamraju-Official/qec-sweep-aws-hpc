@@ -148,14 +148,22 @@ def load_samples(
     if len(paths) < world.size:
         msg = f"{len(paths)} sample files under {samples_dir} are fewer than {world.size} ranks"
         raise ValueError(msg)
-    loaded = [read(p) for p in paths[world.rank :: world.size]]
-    cells = {s.cell for s in loaded}
+    cells = {_cell_of(p) for p in paths}
     if len(cells) != 1:
         msg = f"the samples under {samples_dir} are not of one cell: {sorted(map(str, cells))}"
         raise ValueError(msg)
+    loaded = [read(p) for p in paths[world.rank :: world.size]]
     detectors = torch.from_numpy(np.concatenate([s.detectors for s in loaded]))
     flips = torch.from_numpy(np.concatenate([s.flips for s in loaded]))
     return loaded[0].cell, tuple(p.name for p in paths), detectors, flips
+
+
+def _cell_of(path: Path) -> Cell:
+    # Every rank checks every file's cell, one small array each, before reading its own
+    # share: a mixed directory must fail the same way on every rank, not hang in DDP.
+    with np.load(path) as data:
+        distance, noise_rate, shots = data["cell"]
+    return Cell(int(distance), float(noise_rate), int(shots))
 
 
 def score(
