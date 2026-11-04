@@ -4,6 +4,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 
 ## Working
 - One branch per stage, `stage-NN-<scope>`, merged by rebase through a pull request. Never commit on main.
+- After stage 16, one branch per experiment, `exp-NN-<slug>`. Its record under experiments/ is its plan; the Prediction is committed before anything runs, and a closed record is never edited.
 - Commits follow docs/plan.md. The only unplanned commits are fixes, scoped to the directory they touch.
 - `uv run pre-commit run --all-files` and `uv run pytest` pass before every commit; the hooks refuse otherwise.
 - Run /code-review on the branch before opening its pull request.
@@ -13,7 +14,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 - Every public module, class and function outside tests has a Google-style docstring that says what it is for; ruff enforces it. No comment that restates the code. A comment says why, or it goes.
 - One concern per module. A function fits on one screen.
 - Interfaces are typed and narrow. A dataclass over a dict with known keys.
-- Prose lives in docs/design.md, docs/plan.md, the root README and one README per top-level directory. Nowhere else. A directory's README says what it is for, how to run it and where it fits, in a minute's reading; the root README is the map and the write-up. Neither repeats the design.
+- Prose lives in docs/design.md, docs/plan.md, the root README, one README per top-level directory, and one record per experiment under experiments/, from its template. Nowhere else. A directory's README says what it is for, how to run it and where it fits, in a minute's reading; the root README is the map and the write-up. Neither repeats the design.
 - British spelling in prose and messages.
 
 ## Commit messages
