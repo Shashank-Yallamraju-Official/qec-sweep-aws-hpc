@@ -19,13 +19,22 @@
       "Bash(gh pr *)",
       "Bash(terraform fmt*)",
       "Bash(terraform validate*)",
-      "Bash(terraform plan*)"
+      "Bash(terraform plan*)",
+      "Bash(uv run *)", "Bash(uv sync*)", "Bash(uv lock*)", "Bash(uv add *)",
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git add *)", "Bash(git commit *)", "Bash(git switch *)", "Bash(git push *)",
+      "Bash(gh pr *)", "Bash(terraform fmt*)", "Bash(terraform validate*)", "Bash(terraform plan*)",
+      "Bash(aws login*)", "Bash(aws sts get-caller-identity*)",
+      "Bash(aws s3 ls*)", "Bash(aws s3 cp*)", "Bash(aws s3 sync*)",
+      "Bash(aws ssm get-command-invocation*)", "Bash(aws ssm list-commands*)",
+      "Bash(aws service-quotas get-*)", "Bash(aws service-quotas list-*)",
+      "Bash(aws cloudformation describe-*)", "Bash(aws cloudformation list-*)", "Bash(aws ec2 describe-*)", "Bash(aws pricing *)",
+      "Bash(pcluster describe-*)", "Bash(pcluster list-*)", "Bash(pcluster version*)"
     ],
     "ask": [
-      "Bash(terraform apply*)",
-      "Bash(terraform destroy*)",
-      "Bash(pcluster *)",
-      "Bash(aws *)"
+      "Bash(terraform apply*)", "Bash(terraform destroy*)",
+      "Bash(pcluster create-*)", "Bash(pcluster delete-*)", "Bash(pcluster update-*)", "Bash(pcluster build-image*)",
+      "Bash(aws ssm send-command*)", "Bash(aws s3 rm*)", "Bash(aws s3 rb*)", "Bash(aws s3api delete-*)", "Bash(aws s3api put-*)",
+      "Bash(aws ec2 terminate-*)", "Bash(aws ec2 run-instances*)", "Bash(aws cloudformation delete-*)"
     ]
   },
   "hooks": {
