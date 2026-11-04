@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -37,7 +38,7 @@ case "$1 $2" in
     elif [[ $last == *pcluster_dcv_connect* ]]; then
       [[ -f $STUB_DIR/notoken ]] || echo "{CONNECT_LINE}"
     fi ;;
-  "ssm start-session") echo "forwarding" ;;
+  "ssm start-session") [[ -f $STUB_DIR/noforward ]] && exit 1; sleep 2 ;;
 esac
 """
 MKCERT = """#!/usr/bin/env bash
@@ -57,8 +58,10 @@ def bin_dir(tmp_path: Path) -> Path:
     (bin_dir / "aws").write_text(AWS)
     (bin_dir / "mkcert").write_text(MKCERT)
     (bin_dir / "open").write_text('#!/usr/bin/env bash\necho "open $*" >> "$STUB_LOG"\n')
+    (bin_dir / "jq").symlink_to(shutil.which("jq") or "/usr/bin/jq")
     for stub in bin_dir.iterdir():
-        stub.chmod(0o755)
+        if not stub.is_symlink():
+            stub.chmod(0o755)
     return bin_dir
 
 
@@ -98,12 +101,17 @@ def test_trust_signs_a_key_the_node_made_and_keeps_there(bin_dir: Path) -> None:
     assert result.returncode == 0, result.stderr
     log = calls(bin_dir)
     assert "openssl req" in log
-    assert "-keyout /etc/dcv/dcv.key" in log
+    # The key is made beside the request and moved into place with the signed
+    # certificate, never before the signing is known to have worked.
+    assert "-keyout /etc/dcv/dcv.key" not in log
+    assert log.index("mkcert -csr") < log.index("/etc/dcv/dcv.key")
+    install = log[log.index("SIGNED CERTIFICATE") :]
+    assert "/etc/dcv/dcv.key" in install
+    assert "chmod 600 /etc/dcv/dcv.pem /etc/dcv/dcv.key" in install
     assert "subjectAltName=DNS:localhost,IP:127.0.0.1" in log
     assert "mkcert -csr" in log
     assert "BEGIN CERTIFICATE REQUEST" in log
     assert "SIGNED CERTIFICATE" in log
-    assert "chmod 600 /etc/dcv/dcv.pem" in log
     assert "systemctl restart dcvserver" in log
     # The private key is made on the node and never travels.
     assert "dcv.key <<" not in log
