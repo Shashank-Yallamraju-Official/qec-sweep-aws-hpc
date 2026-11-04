@@ -3,13 +3,11 @@ name: pages
 # A merge to main rebuilds the site over a fresh snapshot of the bucket and publishes it
 # to GitHub Pages. The snapshot is taken on the read-only runner inside the project, the
 # only place the bucket can be read from; the page itself has no credential and no server.
+# Every merge, not only one that touches the site: a merge that closes an experiment
+# changes nothing under web/ and yet is what puts its runs on the page.
 on:
   push:
     branches: [main]
-    paths:
-      - web/**
-      - results/**
-      - .github/workflows/pages.yml
   workflow_dispatch:
 
 concurrency:
