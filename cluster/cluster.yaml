@@ -57,9 +57,9 @@ LoginNodes:
         Enabled: true
         AllowedIps: 172.31.0.0/16
       Iam:
-        # A login pool takes no S3Access, so the read on cluster/* comes as a policy.
+        # A login pool takes no S3Access, so the read on cluster/* comes as a policy; the
+        # node submits nothing and writes no results, so it gets no put on the bucket.
         AdditionalIamPolicies:
-          - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-results
           - Policy: arn:aws:iam::523520772490:policy/qec-sweep-node-cluster-files
           - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       CustomActions: *configure
