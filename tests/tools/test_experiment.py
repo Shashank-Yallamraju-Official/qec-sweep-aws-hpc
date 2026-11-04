@@ -120,26 +120,29 @@ def _close(path: Path, *commits: str) -> None:
     path.write_text(text)
 
 
-def test_a_run_commit_before_the_register_commit_is_a_problem(repo: Path) -> None:
-    before = _commit(repo, "earlier")
-    path = new(repo / "experiments", "learning-curve")
+def _register(repo: Path) -> None:
     index(repo / "experiments")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "docs(experiments): register")
-    _close(path, before)
+
+
+def test_a_prediction_changed_after_registration_is_a_problem(repo: Path) -> None:
+    path = new(repo / "experiments", "learning-curve")
+    _register(repo)
+    path.write_text(
+        path.read_text().replace("## Prediction\n", "## Prediction\n\nMoved the goalposts.\n")
+    )
+    _close(path, "0" * 40)
     index(repo / "experiments")
     (problem,) = check(repo / "experiments")
-    assert "before" in problem
-    assert before[:7] in problem
+    assert "Prediction" in problem
 
 
-def test_a_run_commit_after_the_register_commit_passes(repo: Path) -> None:
+def test_a_closed_record_whose_prediction_is_unchanged_passes(repo: Path) -> None:
     path = new(repo / "experiments", "learning-curve")
-    index(repo / "experiments")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "docs(experiments): register")
-    after = _commit(repo, "the run")
-    _close(path, after)
+    path.write_text(path.read_text().replace("## Prediction\n", "## Prediction\n\nIt falls.\n"))
+    _register(repo)
+    _close(path, "0" * 40)
     index(repo / "experiments")
     assert check(repo / "experiments") == []
 
@@ -157,3 +160,30 @@ def test_main_checks_and_reports(repo: Path, capsys: pytest.CaptureFixture[str])
     assert "index" in capsys.readouterr().out
     assert main(["index", "--dir", str(repo / "experiments")]) == 0
     assert main(["check", "--dir", str(repo / "experiments")]) == 0
+
+
+def test_a_malformed_record_is_reported_not_raised(repo: Path) -> None:
+    new(repo / "experiments", "learning-curve")
+    (repo / "experiments" / "02-broken.md").write_text("# no frontmatter\n")
+    index(repo / "experiments")
+    problems = check(repo / "experiments")
+    assert any("02-broken.md" in p and "frontmatter" in p for p in problems)
+
+
+def test_next_must_name_a_record_by_number(repo: Path) -> None:
+    path = new(repo / "experiments", "learning-curve")
+    path.write_text(path.read_text().replace("next: null", "next: 02-residual"))
+    index(repo / "experiments")
+    (problem,) = check(repo / "experiments")
+    assert "next" in problem
+
+
+def test_a_record_missing_a_field_is_still_a_target_for_next(repo: Path) -> None:
+    first = new(repo / "experiments", "learning-curve")
+    second = new(repo / "experiments", "residual-decoder")
+    first.write_text(first.read_text().replace("next: null", "next: 2"))
+    second.write_text(second.read_text().replace("cost_usd: null\n", ""))
+    index(repo / "experiments")
+    problems = check(repo / "experiments")
+    assert len(problems) == 1
+    assert "cost_usd" in problems[0]
