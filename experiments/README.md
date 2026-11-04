@@ -5,6 +5,7 @@ The research loop, written down. One record per experiment, numbered, from [the 
 <!-- index -->
 | Experiment | Title | Status | Outcome | Cost (USD) | Next |
 | --- | --- | --- | --- | --- | --- |
+| [01](01-learning-curve.md) | Learning curve of the recurrent decoder at distance 5 | registered | - | - | - |
 <!-- /index -->
 
 ## The loop
