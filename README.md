@@ -30,10 +30,11 @@ Each stage ends with one measurement. The full account of each, with what it is 
 | 7, tight coupling | strong-scaling efficiency at 2 and 16 nodes over TCP, 25 qubits | 61% and 21%; the exchanges take three quarters of the time at 16 |
 | 8, cluster as code | changes shipped to a running cluster without SSH | every change since, through a pull request |
 | 9, graphical node | a remote desktop from a browser | ParaView on the login node, through a Session Manager tunnel, no warning |
-| 12, decoder loop | the learned decoder's error rate over PyMatching's, distance 5 | 3.7 to 12.6 times worse; the chain ran unattended in 4.3 min for $0.24 |
+| 12, decoder loop | the learned decoder's error rate over PyMatching's, distance 5 | 3.7 to 12.6 times worse on 200,000 training shots; the chain ran unattended in 4.3 min for $0.24 |
 | 13, provenance | figures that resolve through S3 keys alone to a complete record | 16 of 21 |
 | 14, comparison site | Lighthouse performance on a throttled phone; the comparison query | 100; 11 ms median in the browser |
 | 15, shorter loop | the platform's share of commit to first cell, and dollars per 16-node sweep | 5.6 min from 6.4; $0.098 from $0.30 |
+| 16, research loop | the same decoder's error rate over PyMatching's at distance 5, against training shots | 3.05, 1.60 and 0.90 at 200k, 1M and 5M shots; below matching at every rate with 5M, for $1.48 |
 
 ## What broke
 
