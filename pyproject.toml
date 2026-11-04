@@ -34,6 +34,7 @@ results-promote = "results.manifest:main"
 decoder-sample = "decoder.sample:main"
 decoder-train = "decoder.train:main"
 decoder-plot = "decoder.plot:main"
+decoder-diagnose = "decoder.diagnose:main"
 
 [project.optional-dependencies]
 mpi = [
@@ -79,6 +80,7 @@ ignore = ["D105", "D107", "COM812", "ISC001", "CPY", "TC001", "TC002", "TC003"]
 "mpi/cli.py" = ["T201"]
 "mpi/plot.py" = ["T201"]
 "results/catalogue.py" = ["T201"]
+"decoder/diagnose.py" = ["T201"]
 "results/compare.py" = ["T201"]
 "results/manifest.py" = ["T201"]
 "decoder/sample.py" = ["T201"]

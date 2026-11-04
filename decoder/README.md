@@ -8,13 +8,14 @@ The learned decoder and its loop: labelled syndrome samples, a recurrent model t
 decoder-sample --d 3 --p 5e-3 --shots 50000 --seed 0 --noise correlated --out samples/   # one .npz per call
 decoder-train --samples samples/ --out model/ --epochs 10                                 # decoder.pt and train.json
 decoder-plot evaluations/matching evaluations/learned --out decoders.png                  # both decoders, by distance
+decoder-diagnose s3://bucket/chains/<run>                                                 # where a chain left the decoder
 ```
 
 Launched once per node with `RANK`, `WORLD_SIZE`, `MASTER_ADDR` and `MASTER_PORT` set, `decoder-train` trains one model across the nodes: each holds a share of the shots and the gradients are averaged every step. The device is a parameter, so the same call moves to a GPU queue the day one exists. A trained model decodes a cell through `sweep --decoder learned --model decoder.pt`, so both decoders are judged by the same records, comparison and plot.
 
 ## Modules
 
-`sample.py` arranges Stim's detection events round by round. `model.py` is the LSTM. `train.py` is the training and its record. `evaluate.py` decodes a cell with a saved model. `plot.py` joins two evaluations and draws them.
+`sample.py` arranges Stim's detection events round by round. `model.py` is the LSTM. `train.py` is the training and its record. `evaluate.py` decodes a cell with a saved model. `plot.py` joins two evaluations and draws them. `diagnose.py` reads a chain's records into the State an experiment record starts from: the floor, matching and the learned decoder per cell, whether training had finished, and whether each cell lies at a rate the model trained on.
 
 ## Where it fits
 
