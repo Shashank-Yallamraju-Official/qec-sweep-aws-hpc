@@ -54,6 +54,12 @@ repos:
         language: system
         files: ^docs/plan\.md$
         pass_filenames: false
+      - id: experiment-records
+        name: experiment records
+        entry: uv run python -m tools.experiment check
+        language: system
+        files: ^experiments/
+        pass_filenames: false
       - id: terraform-validate
         name: terraform validate
         # Validation gets its own data directory so it never touches the S3 backend.
