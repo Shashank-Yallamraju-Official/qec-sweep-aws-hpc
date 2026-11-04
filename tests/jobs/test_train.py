@@ -158,6 +158,7 @@ def test_the_job_runs_one_rank_per_node_through_srun(jobs: Path, tmp_path: Path)
         "EPOCHS": "2",
         "LEARNING_RATE": "0.01",
         "DEVICE": "cpu",
+        "PATIENCE": "",
     }
     result = subprocess.run(
         ["bash", jobs / "train.sbatch"], env=job_env, capture_output=True, text=True, check=False
@@ -171,8 +172,18 @@ def test_the_job_runs_one_rank_per_node_through_srun(jobs: Path, tmp_path: Path)
     )
     assert "--samples /scratch/samples" in container
     assert "--seed 3 --epochs 2 --learning-rate 0.01 --device cpu" in container
+    assert "--patience" not in container
     assert container.endswith("RANK=0 WORLD_SIZE=2 MASTER_ADDR=node-1")
     assert (run_dir / "nodes" / "node-1").exists()
+    result = subprocess.run(
+        ["bash", jobs / "train.sbatch"],
+        env={**job_env, "PATIENCE": "3"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--device cpu --patience 3 RANK=0" in submissions(jobs)[-1]
 
 
 def test_a_run_may_wait_for_another_job(jobs: Path) -> None:
@@ -186,3 +197,19 @@ def test_the_learning_rate_must_be_a_number(jobs: Path) -> None:
     assert result.returncode == 2
     assert "learning rate" in result.stderr
     assert not (jobs.parent / "calls").exists()
+
+
+def test_a_run_may_stop_early_with_a_patience(jobs: Path) -> None:
+    result = train(jobs, "-P", "3")
+    assert result.returncode == 0, result.stderr
+    job, _ = submissions(jobs)
+    assert "PATIENCE=3" in job
+    assert record(jobs)["patience"] == 3
+
+
+def test_without_a_patience_the_run_takes_every_epoch(jobs: Path) -> None:
+    result = train(jobs)
+    assert result.returncode == 0, result.stderr
+    job, _ = submissions(jobs)
+    assert "PATIENCE=," in job
+    assert record(jobs)["patience"] is None

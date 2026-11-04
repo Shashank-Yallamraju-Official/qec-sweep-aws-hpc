@@ -115,7 +115,9 @@ def test_the_chain_wires_generate_train_evaluate_and_report_by_dependency(jobs: 
 
 
 def test_the_chain_record_names_every_child_run(jobs: Path) -> None:
-    result = chain(jobs, "3:0.005", options=("-s", "7", "-n", "correlated", "-e", "3", "-N", "2"))
+    result = chain(
+        jobs, "3:0.005", options=("-s", "7", "-n", "correlated", "-e", "3", "-N", "2", "-P", "2")
+    )
     assert result.returncode == 0, result.stderr
     (chain_dir,) = runs(jobs, "chains")
     got = record(chain_dir)
@@ -128,6 +130,7 @@ def test_the_chain_record_names_every_child_run(jobs: Path) -> None:
     assert got["rates"] == ["0.005"]
     assert got["shots"] == {"generate": 500, "chunks": 1, "evaluate": 1000}
     assert got["epochs"] == 3
+    assert got["patience"] == 2
     assert got["train_nodes"] == 2
     assert got["image"] == SWEEP_IMAGE
     assert got["train_image"] == TRAIN_IMAGE
@@ -145,6 +148,7 @@ def test_the_chain_record_names_every_child_run(jobs: Path) -> None:
     assert record(train_dir)["parents"] == [chain_uri, f"s3://bucket/generate/{generate_dir.name}"]
     assert record(train_dir)["nodes"] == 2
     assert record(train_dir)["epochs"] == 3
+    assert record(train_dir)["patience"] == 2
     assert record(learned_dir)["parents"] == [chain_uri, f"s3://bucket/train/{train_dir.name}"]
     assert record(matching_dir)["parents"] == [chain_uri]
     assert record(matching_dir)["noise"] == "correlated"
