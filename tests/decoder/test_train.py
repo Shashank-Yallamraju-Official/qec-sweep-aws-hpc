@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 
 from decoder.model import load  # noqa: E402
 from decoder.sample import sample, write  # noqa: E402
-from decoder.train import Training, World, main, score, split, train  # noqa: E402
+from decoder.train import Training, World, load_samples, main, score, split, train  # noqa: E402
 from sweep.cell import Cell  # noqa: E402
 
 CELL = Cell(distance=3, noise=0.05, shots=150)
@@ -99,6 +99,7 @@ def free_port() -> int:
 
 
 def test_two_ranks_train_one_model_between_them(samples: Path, tmp_path: Path) -> None:
+    write(sample(CELL, seed=2), samples)  # three files over two ranks: one holds two
     out = tmp_path / "model"
     port = str(free_port())
     argv = [sys.executable, "-m", "decoder.train", "--samples", str(samples), "--out", str(out)]
@@ -114,8 +115,8 @@ def test_two_ranks_train_one_model_between_them(samples: Path, tmp_path: Path) -
         assert rank.wait(timeout=120) == 0, rank.stderr.read()  # type: ignore[union-attr]
     written = json.loads((out / "train.json").read_text())
     assert written["ranks"] == 2
-    assert written["shots"] == 300
-    assert written["held_out"] == 30
+    assert written["shots"] == 450
+    assert written["held_out"] == 45
     assert written["epoch_losses"][-1] < written["epoch_losses"][0]
     assert load(out / "decoder.pt").hidden == 8
 
@@ -125,13 +126,27 @@ def test_a_single_process_records_one_rank(samples: Path, tmp_path: Path) -> Non
     assert record.ranks == 1
 
 
-def test_split_gives_every_rank_the_same_number_of_shots() -> None:
+def test_split_holds_a_tenth_of_this_ranks_shots_out() -> None:
     detectors = torch.zeros((101, 2, 3), dtype=torch.uint8)
     flips = torch.zeros(101, dtype=torch.uint8)
-    (first, _), (held, _) = split(detectors, flips, 0, World(0, 2))
-    (second, _), _ = split(detectors, flips, 0, World(1, 2))
+    (training, _), (held, _) = split(detectors, flips, 0)
     assert len(held) == 10
-    assert len(first) == len(second) == 45
+    assert len(training) == 91
+
+
+def test_each_rank_loads_only_its_share_of_the_files(samples: Path) -> None:
+    write(sample(CELL, seed=2), samples)
+    names = tuple(sorted(p.name for p in samples.glob("*.npz")))
+    _, first_names, first, _ = load_samples(samples, World(0, 2))
+    _, second_names, second, _ = load_samples(samples, World(1, 2))
+    assert first_names == second_names == names
+    assert len(first) == 300
+    assert len(second) == 150
+
+
+def test_load_samples_refuses_fewer_files_than_ranks(samples: Path) -> None:
+    with pytest.raises(ValueError, match="fewer"):
+        load_samples(samples, World(0, 3))
 
 
 def test_train_stops_when_the_held_out_loss_stalls(samples: Path, tmp_path: Path) -> None:
