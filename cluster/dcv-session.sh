@@ -9,7 +9,7 @@
 # the node and nothing secret passes through Session Manager, whose command history is
 # kept for a month. A node already serving a certificate for localhost is left alone, so
 # a desktop someone else has open survives.
-# Needs the AWS CLI with the Session Manager plugin, and mkcert for -t; no key pair.
+# Needs the AWS CLI with the Session Manager plugin and jq, and mkcert for -t; no key pair.
 set -euo pipefail
 trust=''
 while getopts 't' option; do
@@ -20,6 +20,7 @@ while getopts 't' option; do
 done
 shift $((OPTIND - 1))
 cluster=${1:-qec} region=${AWS_REGION:-us-east-2} port=8443
+command -v jq >/dev/null || { echo "jq is not installed: brew install jq" >&2; exit 2; }
 if [[ -n $trust ]] && ! command -v mkcert >/dev/null; then
   echo "mkcert is not installed: brew install mkcert && mkcert -install" >&2
   exit 2
@@ -54,20 +55,27 @@ served_names() {
 }
 
 # DCV takes a certificate from /etc/dcv, owned by its user and readable by nobody else:
-# any other mode and it silently falls back to the self-signed one it makes itself.
+# any other mode and it silently falls back to the self-signed one it makes itself. The
+# key waits in a private directory on the node until the signed certificate arrives, so
+# a signing that fails leaves the node serving what it served before.
 if [[ -n $trust ]] && ! served_names | grep -q 'DNS:localhost'; then
-  on_node 'openssl req -new -newkey rsa:2048 -nodes -keyout /etc/dcv/dcv.key -out /etc/dcv/dcv.csr \
+  on_node 'install -d -m 700 /root/dcv-trust && openssl req -new -newkey rsa:2048 -nodes \
+    -keyout /root/dcv-trust/dcv.key -out /root/dcv-trust/dcv.csr \
     -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1 2>/dev/null \
-    && chown dcv:dcv /etc/dcv/dcv.key && chmod 600 /etc/dcv/dcv.key && cat /etc/dcv/dcv.csr' > "$work/dcv.csr"
-  mkcert -csr "$work/dcv.csr" -cert-file "$work/dcv.pem" >/dev/null 2>&1
-  on_node "$(printf 'cat > /etc/dcv/dcv.pem <<"PEM"\n%s\nPEM\n' "$(cat "$work/dcv.pem")")
-chown dcv:dcv /etc/dcv/dcv.pem && chmod 600 /etc/dcv/dcv.pem && systemctl restart dcvserver" > /dev/null
+    && cat /root/dcv-trust/dcv.csr' > "$work/dcv.csr"
+  mkcert -csr "$work/dcv.csr" -cert-file "$work/dcv.pem" >/dev/null
+  on_node "$(printf 'cat > /root/dcv-trust/dcv.pem <<"PEM"\n%s\nPEM\n' "$(cat "$work/dcv.pem")")
+mv /root/dcv-trust/dcv.pem /etc/dcv/dcv.pem && mv /root/dcv-trust/dcv.key /etc/dcv/dcv.key
+chown dcv:dcv /etc/dcv/dcv.pem /etc/dcv/dcv.key && chmod 600 /etc/dcv/dcv.pem /etc/dcv/dcv.key
+rm -rf /root/dcv-trust && systemctl restart dcvserver" > /dev/null
 fi
 
 # The forward is up before the token is minted: the token lives thirty seconds.
 aws ssm start-session --region "$region" --target "$node" --document-name AWS-StartPortForwardingSession \
   --parameters "portNumber=$port,localPortNumber=$port" &
 forward=$!
+sleep 1
+kill -0 "$forward" 2>/dev/null || { echo "the port forward did not start; is the Session Manager plugin installed and port $port free?" >&2; exit 1; }
 # ParallelCluster's own connect script, the one pcluster dcv-connect runs over SSH, makes
 # or reuses the user's session and prints a one-time token for it.
 session='' token=''
