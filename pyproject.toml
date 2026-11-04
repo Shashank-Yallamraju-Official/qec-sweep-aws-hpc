@@ -35,6 +35,7 @@ decoder-sample = "decoder.sample:main"
 decoder-train = "decoder.train:main"
 decoder-plot = "decoder.plot:main"
 decoder-diagnose = "decoder.diagnose:main"
+experiment = "tools.experiment:main"
 
 [project.optional-dependencies]
 mpi = [
