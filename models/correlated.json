@@ -1,7 +1,9 @@
 {
-  "name": "pymatching",
-  "decoder": "pymatching",
+  "name": "lstm-5m",
+  "decoder": "learned",
   "noise_model": "correlated",
-  "run": "s3://qec-sweep-results-523520772490/evaluations/20261104T023953Z",
-  "image_digest": "sha256:7323f11418c7ed2d0182427c95fe791506e334d66161b26633d8ab8b16e2d538"
+  "run": "s3://qec-sweep-results-523520772490/evaluations/20261104T023955Z",
+  "image_digest": "sha256:82720fafcec98b4718775fdd3cbe390659f12ddf1b3dc49f257aaa365f40e11b",
+  "artifact": "s3://qec-sweep-results-523520772490/train/20261104T023952Z/decoder.pt",
+  "artifact_sha256": "9bf5f579b7cfa47deed0277820eb7434720eb0cb6b15aac1a84da26d1b828f79"
 }
