@@ -32,6 +32,7 @@ One measurement per stage; the full account of each is in [the plan](docs/plan.m
 | 14, comparison site | Lighthouse on a throttled phone; the query in the browser | 100; 11 ms |
 | 15, shorter loop | the platform's share of commit to first cell; dollars per 16-node sweep | 5.6 min from 6.4; $0.098 from $0.30 |
 | 16, research loop | learned over matching at distance 5, by training shots | 3.05, 1.60, 0.90 at 200k, 1M, 5M; 0.92 on a second seed; 1.16 under depolarising noise |
+| 17, front page | words a reader passes before the first result; the README's length | 47 from 621; 1100 words from 1,597 |
 
 ## The platform
 
