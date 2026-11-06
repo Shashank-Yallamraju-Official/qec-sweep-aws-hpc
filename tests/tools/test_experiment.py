@@ -1,9 +1,21 @@
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from tools.experiment import HEADINGS, check, index, main, new, read_record
+from tests.results.conftest import FULL_RECORD, write_run
+from tools.experiment import (
+    HEADINGS,
+    Baseline,
+    baseline,
+    check,
+    describe,
+    index,
+    main,
+    new,
+    read_record,
+)
 
 README = """# experiments
 
@@ -187,3 +199,52 @@ def test_a_record_missing_a_field_is_still_a_target_for_next(repo: Path) -> None
     problems = check(repo / "experiments")
     assert len(problems) == 1
     assert "cost_usd" in problems[0]
+
+
+def _manifest(models: Path, noise_model: str, run: str, name: str = "pymatching") -> None:
+    models.mkdir(exist_ok=True)
+    fields = {"name": name, "decoder": "pymatching", "noise_model": noise_model}
+    fields |= {"run": run, "image_digest": "sha256:9d217f8c"}
+    (models / f"{noise_model}.json").write_text(json.dumps(fields))
+
+
+def test_baseline_names_the_decoder_in_force_and_the_chain_behind_it(tmp_path: Path) -> None:
+    chain = f"{tmp_path.as_posix()}/chains/20261104T023950Z"
+    judged = {
+        **FULL_RECORD,
+        "run": "20261104T023953Z",
+        "noise": "correlated",
+        "cells": ["5:0.001", "5:0.005"],
+        "parents": [chain, f"{tmp_path.as_posix()}/train/20261104T023952Z"],
+    }
+    write_run(tmp_path, "evaluations/20261104T023953Z", judged, {5: 12})
+    write_run(tmp_path, "sweeps/20261101T172143Z", FULL_RECORD, {3: 28})
+    models = tmp_path / "models"
+    _manifest(models, "correlated", f"{tmp_path}/evaluations/20261104T023953Z")
+    _manifest(models, "depolarising", f"{tmp_path}/sweeps/20261101T172143Z")
+    found = baseline(models)
+    assert [b.noise_model for b in found] == ["correlated", "depolarising"]
+    assert found[0].chain == chain
+    assert found[0].cells == ("5:0.001", "5:0.005")
+    assert found[1].chain is None
+    text = describe(found)
+    assert f"start from: uv run decoder-diagnose {chain}" in text
+    assert "depolarising: pymatching in force from" in text
+    assert "stands alone" in text
+
+
+def test_baseline_main_prints_and_reports_a_missing_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    models = tmp_path / "models"
+    assert main(["baseline", "--models", str(models)]) == 2
+    assert capsys.readouterr().err.startswith("experiment: no manifests")
+    _manifest(models, "correlated", f"{tmp_path}/evaluations/nowhere")
+    assert main(["baseline", "--models", str(models)]) == 2
+    assert "Traceback" not in capsys.readouterr().err
+    write_run(tmp_path, "sweeps/20261101T172143Z", FULL_RECORD, {3: 28})
+    _manifest(models, "correlated", f"{tmp_path}/sweeps/20261101T172143Z")
+    assert main(["baseline", "--models", str(models)]) == 0
+    assert describe([Baseline("correlated", "pymatching", "x", (), None)]).startswith(
+        "correlated: pymatching in force from x"
+    )

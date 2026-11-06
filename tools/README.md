@@ -9,7 +9,7 @@ The scripts that measure the project and keep its rules, none of which run on th
 | `uv run python -m tools.loop_plot --before <run> --after <run>` | two of the above | loop time and cost per sweep, side by side |
 | `uv run python -m tools.process_report [--stage N]` | the hook event log | active minutes, edits, rejected edits and commit attempts per planned commit |
 | `uv run python tools/check_commit.py <message file>` | a commit message | whether it follows the format in `CLAUDE.md`; the commit hook runs it |
-| `uv run experiment new <slug>`, `check`, `index` | the records under `experiments/` and git | the next record from the template; whether every record is complete, a closed one's run commits follow its registration and the README's index is current, which the commit hook refuses otherwise; the index rewritten |
+| `uv run experiment new <slug>`, `check`, `index`, `baseline` | the records under `experiments/`, git, and the manifests under `models/` | the next record from the template; whether every record is complete, a closed one's run commits follow its registration and the README's index is current, which the commit hook refuses otherwise; the index rewritten; the decoder in force under each noise model with the chain to diagnose |
 | `uv run python -m tools.loop_figure` | the marks under `docs/figures/marks` | the README's figure, `docs/figures/loop-light.svg` and `loop-dark.svg`, with the marks embedded |
 | `uv run python -m tools.learning_curve <chain>...` | each chain's records, as `decoder-diagnose` reads them | the README's learning curve, `docs/figures/learning-curve-light.svg` and `-dark.svg`: the learned decoder over matching against training shots, every address read in the file's description |
 
