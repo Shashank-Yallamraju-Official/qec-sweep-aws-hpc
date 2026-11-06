@@ -1,0 +1,7 @@
+{
+  "name": "pymatching",
+  "decoder": "pymatching",
+  "noise_model": "correlated",
+  "run": "s3://qec-sweep-results-523520772490/evaluations/20261104T023953Z",
+  "image_digest": "sha256:7323f11418c7ed2d0182427c95fe791506e334d66161b26633d8ab8b16e2d538"
+}

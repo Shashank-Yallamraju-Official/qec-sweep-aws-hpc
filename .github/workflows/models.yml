@@ -1,10 +1,11 @@
 name: models
 
-# A decoder is promoted by changing models/decoder.json through a pull request.
-# The check follows the candidate manifest to its run in the bucket and judges
-# it, cell by cell, against the decoder in force on the base branch; it refuses
-# a candidate that is worse anywhere with the intervals apart, or that skipped a
-# cell. It reads the bucket from the read-only runner (see infra/deploy.tf).
+# A decoder is promoted by changing its noise model's manifest under models/
+# through a pull request. The check follows every manifest to its run in the
+# bucket, holds a learned decoder's weights to their hash, and judges each
+# against the same file on the base branch cell by cell; it refuses a candidate
+# that is worse anywhere with the intervals apart, or that skipped a cell. It
+# reads the bucket from the read-only runner (see infra/deploy.tf).
 on:
   pull_request:
     paths:
@@ -27,8 +28,13 @@ jobs:
       - run: uv sync --extra results
       - shell: bash
         run: |
-          against=()
-          if git show "origin/${{ github.base_ref }}:models/decoder.json" > current.json 2>/dev/null; then
-            against=(--against current.json)
-          fi
-          uv run results-promote models/decoder.json "${against[@]}" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          status=0
+          for manifest in models/*.json; do
+            against=()
+            if git show "origin/${{ github.base_ref }}:$manifest" > current.json 2>/dev/null; then
+              against=(--against current.json)
+            fi
+            echo "## $manifest" | tee -a "$GITHUB_STEP_SUMMARY"
+            uv run results-promote "$manifest" "${against[@]}" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=1
+          done
+          exit "$status"
