@@ -19,6 +19,7 @@ import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from decoder.diagnose import diagnose
 from results.store import locate
@@ -77,6 +78,9 @@ class Curve:
 def read_chain(chain: str) -> Curve:
     """Read one chain into its points.
 
+    A cell where either decoder saw no error has no interval above zero and so no place
+    on a log axis; it is left out.
+
     Raises:
         ValueError: When the chain trained more than one model, since the figure has one
             shot count per chain.
@@ -99,7 +103,7 @@ def read_chain(chain: str) -> Curve:
             high=state.learned.high / state.matching.low,
         )
         for state in diagnosis.cells
-        if state.ratio is not None and state.matching.low > 0
+        if state.ratio is not None and state.matching.low > 0 and state.learned.low > 0
     )
     return Curve(diagnosis.noise, seed, points, diagnosis.read)
 
@@ -135,15 +139,17 @@ def draw(theme: str, curves: Sequence[Curve]) -> str:
         *_baseline(c, scale),
     ]
     for hue, rate in zip(SERIES[theme], _rates(curves), strict=False):
+        labelled = False
         for s, seed in enumerate(seeds):
             points = sorted(
                 (p for k in curves if k.seed == seed for p in k.points if p.rate == rate),
                 key=lambda p: p.shots,
             )
             parts.extend(_series(c, scale, points, hue, nudge=s * NUDGE, hollow=s > 0))
-            if s == 0 and points:
+            if points and not labelled:
                 after = (len(seeds) - 1) * NUDGE
                 parts.append(_end_label(c, scale, points[-1], rate, after=after))
+                labelled = True
     parts.extend(_key(c, seeds))
     parts.append("</svg>")
     return "\n".join(parts)
@@ -153,10 +159,8 @@ class _Scale:
     """Log axes from the data, with room at the ends."""
 
     def __init__(self, curves: Sequence[Curve]) -> None:
-        first = min(k.seed for k in curves)
-        points = [p for k in curves if k.seed == first for p in k.points]
         everything = [p for k in curves for p in k.points]
-        self.shots = sorted({p.shots for p in points})
+        self.shots = sorted({p.shots for p in everything})
         x0, x1 = math.log10(min(self.shots)), math.log10(max(self.shots))
         self.x0, self.x1 = x0 - 0.08 * (x1 - x0) - 0.02, x1 + 0.08 * (x1 - x0) + 0.02
         y0 = math.log10(min(1.0, *(p.low for p in everything)))
@@ -183,12 +187,13 @@ def _open() -> str:
 
 
 def _title(curves: Sequence[Curve]) -> str:
-    return f"Learned decoder over matching against training shots, {curves[0].noise} noise"
+    noise = escape(curves[0].noise)
+    return f"Learned decoder over matching against training shots, {noise} noise"
 
 
 def _desc(curves: Sequence[Curve]) -> str:
     read = sorted({address for curve in curves for address in curve.read})
-    return "Read: " + ", ".join(read)
+    return escape("Read: " + ", ".join(read))
 
 
 def _axes(c: dict[str, str], scale: _Scale) -> list[str]:
@@ -291,7 +296,7 @@ def _text(  # noqa: PLR0913
     x: float, y: float, text: str, fill: str, size: float, *, anchor: str = "start"
 ) -> str:
     place = f'x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}"'
-    return f'<text {place} fill="{fill}" font-size="{size}">{text}</text>'
+    return f'<text {place} fill="{fill}" font-size="{size}">{escape(text)}</text>'
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -301,7 +306,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: ``[--out dir] [--name stem] <chain>...``; ``None`` reads ``sys.argv``.
 
     Returns:
-        Exit status: 0 on success, 2 when the chains cannot be drawn as one figure.
+        Exit status: 0 on success, 2 when a chain is missing or they cannot be one figure.
     """
     parser = argparse.ArgumentParser(
         prog="learning-curve", description="draw the readme's learning curve from chains"
@@ -315,7 +320,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         curves = [read_chain(chain) for chain in args.chains]
         figures = {theme: draw(theme, curves) for theme in PALETTES}
-    except (KeyError, ValueError) as error:
+    except (FileNotFoundError, KeyError, ValueError) as error:
         print(f"learning-curve: {error}", file=sys.stderr)
         return 2
     # Both themes or neither: the README shows one or the other by the reader's setting.
