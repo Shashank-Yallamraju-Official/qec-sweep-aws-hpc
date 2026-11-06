@@ -1,4 +1,4 @@
-"""The promoted decoder: a manifest naming the run that earned it; ``results-promote`` checks it."""
+"""The decoders in force: one manifest per noise model; ``results-promote`` checks them."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 import sys
 from collections.abc import Sequence
 from dataclasses import MISSING, dataclass, fields
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pyarrow as pa
@@ -16,6 +17,11 @@ from results.compare import Comparison, compare, provenance, summary
 from results.run import RunRecord, read_cells, read_record
 from results.store import locate
 from sweep.noise import DEPOLARISING
+
+MATCHING = "pymatching"
+# Until the decoder loop landed there was one noise model, so a run from before then
+# that recorded none was made under it.
+CORRELATED_SINCE = datetime(2026, 11, 3, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,26 @@ class Manifest:
     artifact_sha256: str | None = None
 
 
+@dataclass(frozen=True)
+class Baseline:
+    """The decoder in force under one noise model, and where to start from to beat it.
+
+    Attributes:
+        noise_model: The noise model the manifest is in force under.
+        name: The decoder's name.
+        run: The full address of the run that earned it.
+        cells: The cells that run names, ``distance:rate``, when its record lists them.
+        chain: The chain the run came from, by full address; ``None`` for a run that
+            stands alone, such as a sweep.
+    """
+
+    noise_model: str
+    name: str
+    run: str
+    cells: tuple[str, ...]
+    chain: str | None
+
+
 def read_manifest(path: Path) -> Manifest:
     """Read a manifest file.
 
@@ -57,9 +83,6 @@ def read_manifest(path: Path) -> Manifest:
         msg = f"{path} has fields no manifest has: {', '.join(sorted(unknown))}"
         raise ValueError(msg)
     return Manifest(**raw)
-
-
-MATCHING = "pymatching"
 
 
 def resolve(manifest: Manifest) -> tuple[RunRecord, pa.Table]:
@@ -80,24 +103,49 @@ def resolve(manifest: Manifest) -> tuple[RunRecord, pa.Table]:
             f"the manifest says {manifest.image_digest}"
         )
         raise ValueError(msg)
-    noise = json.loads(record.parameters).get("noise", DEPOLARISING)
+    cells = read_cells(store, key)
+    noise = noise_of(record, cells)
     if noise != manifest.noise_model:
-        msg = f"{manifest.run} ran under {noise} noise, the manifest says {manifest.noise_model}"
+        ran = f"ran under {noise} noise" if noise else "recorded no noise model"
+        msg = f"{manifest.run} {ran}, the manifest says {manifest.noise_model}"
         raise ValueError(msg)
     check_weights(manifest, record)
-    return record, read_cells(store, key)
+    return record, cells
+
+
+def noise_of(record: RunRecord, cells: pa.Table) -> str | None:
+    """The noise model a run was made under: its cells say, else its record, else its age.
+
+    Cells have carried their noise model since the decoder loop; a run from before
+    that recorded none was made under the only model there was. A later run that
+    recorded none is ``None``, which no manifest matches.
+
+    Raises:
+        ValueError: When the cells disagree among themselves.
+    """
+    if "noise_model" in cells.column_names:
+        found = {str(n) for n in cells.column("noise_model").to_pylist()}
+        if len(found) != 1:
+            msg = f"{record.key} mixes noise models: {', '.join(sorted(found))}"
+            raise ValueError(msg)
+        return found.pop()
+    noise = json.loads(record.parameters).get("noise")
+    if noise is None and record.submitted < CORRELATED_SINCE:
+        return DEPOLARISING
+    return None if noise is None else str(noise)
 
 
 def check_weights(manifest: Manifest, record: RunRecord) -> None:
     """Read a learned decoder's weights and hold them to the manifest and the run.
 
     Matching has no weights, so a matching manifest may not name any. A learned one
-    names both the address and the hash; the bytes there must hash as it says, and
-    the run that holds them must be a parent of the run that was judged, so the
-    weights in force are the ones the evaluation decoded with.
+    names both the address and the hash; the bytes there must hash as it says, the
+    run that holds them must be a parent of the run that was judged, and that run
+    must have decoded with one weights file, so the file in force is the one that
+    was judged.
 
     Raises:
-        ValueError: On any of those four refusals.
+        ValueError: On any of those five refusals.
         FileNotFoundError: When there is nothing at the weights' address.
     """
     if manifest.decoder == MATCHING:
@@ -107,6 +155,13 @@ def check_weights(manifest: Manifest, record: RunRecord) -> None:
         return
     if not (manifest.artifact and manifest.artifact_sha256):
         msg = f"{manifest.name} is learned: name its weights in artifact and artifact_sha256"
+        raise ValueError(msg)
+    decoded_with = json.loads(record.parameters).get("models", {})
+    if len(decoded_with) > 1:
+        msg = (
+            f"{manifest.run} decoded with {len(decoded_with)} weights files, one per "
+            "distance; a manifest names one"
+        )
         raise ValueError(msg)
     store, key = locate(manifest.artifact)
     digest = hashlib.sha256(store.read(key)).hexdigest()
@@ -131,29 +186,85 @@ def admissible(comparison: Comparison) -> bool:
     return comparison.only_a == 0 and comparison.count("higher") == 0
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Check a candidate manifest, against the current one when there is one.
+def in_force(models: Path) -> list[Baseline]:
+    """The decoder in force under each noise model, from the manifests in a directory.
 
-    Args:
-        argv: ``<candidate manifest> [--against <current manifest>]``.
+    Each manifest is followed to its run's record; the first parent under ``chains/``
+    is the chain to diagnose.
+
+    Raises:
+        FileNotFoundError: When there are no manifests, or a run is not where one says.
+        ValueError: When a manifest lacks a field.
+    """
+    manifests = sorted(models.glob("*.json"))
+    if not manifests:
+        msg = f"no manifests under {models}"
+        raise FileNotFoundError(msg)
+    found = []
+    for path in manifests:
+        manifest = read_manifest(path)
+        store, key = locate(manifest.run)
+        record = read_record(store, key)
+        cells = json.loads(record.parameters).get("cells", [])
+        chains = [p for p in record.parents if locate(p)[1].split("/", 1)[0] == "chains"]
+        found.append(
+            Baseline(
+                manifest.noise_model,
+                manifest.name,
+                manifest.run,
+                tuple(cells),
+                chains[0] if chains else None,
+            )
+        )
+    return found
+
+
+def describe(baselines: Sequence[Baseline]) -> str:
+    """The baselines as an experiment's State step wants them: one block per noise model."""
+    lines = []
+    for b in baselines:
+        cells = f", cells {' '.join(b.cells)}" if b.cells else ""
+        lines.append(f"{b.noise_model}: {b.name} in force from {b.run}{cells}")
+        if b.chain:
+            lines.append(f"  start from: uv run decoder-diagnose {b.chain}")
+        else:
+            lines.append("  start from: no chain behind this run; it stands alone")
+    return "\n".join(lines)
+
+
+def by_noise_model(directory: Path) -> dict[str, Path]:
+    """The manifests in a directory keyed by noise model; one without the field is skipped.
+
+    The base branch may hold a manifest from before the field existed; it is in
+    force under nothing a candidate can be judged against, and is said so.
+    """
+    found = {}
+    for path in sorted(directory.glob("*.json")):
+        noise_model = json.loads(path.read_text()).get("noise_model")
+        if noise_model is None:
+            print(f"{path} names no noise model; nothing is judged against it")
+        else:
+            found[str(noise_model)] = path
+    return found
+
+
+def judge(candidate: Path, against: Path | None) -> int:
+    """Check one candidate manifest, against the one in force when there is one.
 
     Returns:
-        Exit status: 0 when the candidate may be promoted, 1 when the comparison
-        refuses it, 2 when a manifest does not resolve.
+        0 when the candidate may be promoted, 1 when the comparison refuses it, 2 when
+        a manifest does not resolve.
     """
-    parser = argparse.ArgumentParser(
-        prog="results-promote", description="admit or refuse a decoder manifest"
-    )
-    parser.add_argument("candidate", type=Path, help="the manifest proposed")
-    parser.add_argument("--against", type=Path, help="the manifest in force, if any")
-    args = parser.parse_args(argv)
+    if against is not None and candidate.read_bytes() == against.read_bytes():
+        print(f"{candidate}: unchanged from the manifest in force")
+        return 0
     try:
-        candidate, cells = resolve(read_manifest(args.candidate))
-        print(provenance("candidate", candidate))
-        if args.against is None:
+        resolved, cells = resolve(read_manifest(candidate))
+        print(provenance("candidate", resolved))
+        if against is None:
             print("no decoder in force; the candidate stands on its own record")
             return 0
-        current, current_cells = resolve(read_manifest(args.against))
+        current, current_cells = resolve(read_manifest(against))
         print(provenance("current", current))
     except (ValueError, FileNotFoundError, KeyError) as error:
         print(f"results-promote: {error}", file=sys.stderr)
@@ -165,6 +276,49 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     print("refused: the candidate loses accuracy somewhere, or skipped a cell", file=sys.stderr)
     return 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Check candidate manifests against the ones in force.
+
+    Args:
+        argv: ``<candidate> [--against <manifest>]`` judges one candidate against one
+            manifest; ``--base <directory> <candidate>...`` judges each candidate
+            against the manifest in that directory with the same noise model, and
+            refuses a noise model the directory has a decoder for and the candidates
+            do not, since a decoder is replaced, not withdrawn.
+
+    Returns:
+        Exit status: the worst of the candidates' verdicts, 0 admitted, 1 refused,
+        2 unresolved.
+    """
+    parser = argparse.ArgumentParser(
+        prog="results-promote", description="admit or refuse decoder manifests"
+    )
+    parser.add_argument("candidates", nargs="+", type=Path, help="the manifests proposed")
+    choice = parser.add_mutually_exclusive_group()
+    choice.add_argument("--against", type=Path, help="the manifest in force, if any")
+    choice.add_argument("--base", type=Path, help="the directory of the manifests in force")
+    args = parser.parse_args(argv)
+    if args.base is None:
+        if len(args.candidates) > 1:
+            parser.error("--against takes one candidate; give --base for several")
+        return judge(args.candidates[0], args.against)
+    current = by_noise_model(args.base)
+    proposed = by_noise_model(Path(args.candidates[0]).parent) if args.candidates else {}
+    proposed = {k: v for k, v in proposed.items() if v in args.candidates}
+    status = 0
+    for noise_model, candidate in proposed.items():
+        print(f"## {candidate}")
+        status = max(status, judge(candidate, current.get(noise_model)))
+    for noise_model in current.keys() - proposed.keys():
+        print(
+            f"results-promote: {noise_model} has a decoder in force and no candidate; "
+            "a decoder is replaced, not withdrawn",
+            file=sys.stderr,
+        )
+        status = max(status, 1)
+    return status
 
 
 if __name__ == "__main__":

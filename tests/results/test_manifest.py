@@ -2,10 +2,22 @@ import hashlib
 import json
 from pathlib import Path
 
+import pyarrow.parquet as pq
 import pytest
 
 from results.compare import compare
-from results.manifest import Manifest, admissible, main, read_manifest, resolve
+from results.manifest import (
+    Baseline,
+    Manifest,
+    admissible,
+    describe,
+    in_force,
+    main,
+    noise_of,
+    read_manifest,
+    resolve,
+)
+from results.run import read_cells, read_record
 from results.store import LocalStore
 from tests.results.conftest import FULL_RECORD, write_run
 from tests.results.test_compare import cells
@@ -62,7 +74,7 @@ def test_resolve_refuses_a_run_that_never_recorded_a_digest(store: LocalStore) -
 
 def test_resolve_refuses_a_run_under_another_noise_model(store: LocalStore) -> None:
     correlated = {**FULL_RECORD, "run": "20261031T000000Z", "noise": "correlated"}
-    write_run(store.root, "evaluations/20261031T000000Z", correlated, {5: 12})
+    write_run(store.root, "evaluations/20261031T000000Z", correlated, {5: 12}, "correlated")
     with pytest.raises(
         ValueError, match="ran under correlated noise, the manifest says depolarising"
     ):
@@ -85,7 +97,7 @@ def learned(store: LocalStore, weights: bytes = b"weights", **changes: object) -
         "parents": [store.uri("train/20261031T000000Z")],
     }
     if not (store.root / "evaluations" / "20261031T000100Z").exists():
-        write_run(store.root, "evaluations/20261031T000100Z", record, {5: 12})
+        write_run(store.root, "evaluations/20261031T000100Z", record, {5: 12}, "correlated")
     fields = {
         "name": "lstm",
         "decoder": "learned",
@@ -128,6 +140,90 @@ def test_resolve_refuses_a_learned_manifest_without_weights_and_matching_with(
 def test_resolve_reports_missing_weights_as_not_found(store: LocalStore) -> None:
     with pytest.raises(FileNotFoundError):
         resolve(learned(store, artifact=store.uri("train/20261031T000000Z/nowhere.pt")))
+
+
+def _without_noise_column(store: LocalStore, key: str) -> None:
+    for path in (store.root / key).glob("*.parquet"):
+        table = pq.read_table(path)
+        pq.write_table(table.drop_columns(["noise_model"]), path)
+
+
+def test_noise_comes_from_the_cells_then_the_record_then_the_run_s_age(store: LocalStore) -> None:
+    record = read_record(store, FULL)
+    cells = read_cells(store, FULL)
+    assert noise_of(record, cells) == "depolarising"
+    _without_noise_column(store, FULL)
+    assert noise_of(record, read_cells(store, FULL)) == "depolarising"
+    recent = {**FULL_RECORD, "run": "20261105T000000Z", "submitted": "2026-11-05T00:00:00Z"}
+    write_run(store.root, "sweeps/20261105T000000Z", recent, {3: 28})
+    _without_noise_column(store, "sweeps/20261105T000000Z")
+    assert (
+        noise_of(
+            read_record(store, "sweeps/20261105T000000Z"),
+            read_cells(store, "sweeps/20261105T000000Z"),
+        )
+        is None
+    )
+    with pytest.raises(ValueError, match="recorded no noise model, the manifest says depolarising"):
+        resolve(manifest(store, run="sweeps/20261105T000000Z"))
+    write_run(store.root, "sweeps/20261105T000100Z", {**recent, "run": "20261105T000100Z"}, {3: 28})
+    write_run(
+        store.root,
+        "sweeps/20261105T000200Z",
+        {**recent, "run": "20261105T000200Z"},
+        {5: 2},
+        "correlated",
+    )
+    for path in (store.root / "sweeps/20261105T000200Z").glob("*.parquet"):
+        path.rename(store.root / "sweeps/20261105T000100Z" / path.name)
+    with pytest.raises(ValueError, match="mixes noise models: correlated, depolarising"):
+        resolve(manifest(store, run="sweeps/20261105T000100Z"))
+
+
+def test_a_run_decoded_with_several_weights_files_is_refused(store: LocalStore) -> None:
+    learned(store)
+    path = store.root / "evaluations" / "20261031T000100Z" / "run.json"
+    record = json.loads(path.read_text())
+    record["models"] = {"3": "/scratch/a/decoder.pt", "5": "/scratch/b/decoder.pt"}
+    path.write_text(json.dumps(record))
+    with pytest.raises(ValueError, match="decoded with 2 weights files"):
+        resolve(learned(store))
+
+
+def test_in_force_names_each_decoder_and_the_chain_behind_it(tmp_path: Path) -> None:
+    chain = f"{tmp_path.as_posix()}/chains/20261104T023950Z"
+    judged = {
+        **FULL_RECORD,
+        "run": "20261104T023953Z",
+        "noise": "correlated",
+        "cells": ["5:0.001", "5:0.005"],
+        "parents": [chain + "/", f"{tmp_path.as_posix()}/train/20261104T023952Z"],
+    }
+    write_run(tmp_path, "evaluations/20261104T023953Z", judged, {5: 12}, "correlated")
+    write_run(tmp_path, "sweeps/20261101T172143Z", FULL_RECORD, {3: 28})
+    models = tmp_path / "models"
+    models.mkdir()
+    for noise_model, run in (
+        ("correlated", "evaluations/20261104T023953Z"),
+        ("depolarising", "sweeps/20261101T172143Z"),
+    ):
+        fields = {"name": "pymatching", "decoder": "pymatching", "noise_model": noise_model}
+        fields |= {"run": f"{tmp_path}/{run}", "image_digest": "sha256:9d217f8c"}
+        (models / f"{noise_model}.json").write_text(json.dumps(fields))
+    found = in_force(models)
+    assert [b.noise_model for b in found] == ["correlated", "depolarising"]
+    assert found[0].chain == chain + "/"
+    assert found[0].cells == ("5:0.001", "5:0.005")
+    assert found[1].chain is None
+    text = describe(found)
+    assert f"start from: uv run decoder-diagnose {chain}/" in text
+    assert "depolarising: pymatching in force from" in text
+    assert "stands alone" in text
+    assert describe([Baseline("correlated", "pymatching", "x", (), None)]).startswith(
+        "correlated: pymatching in force from x"
+    )
+    with pytest.raises(FileNotFoundError, match="no manifests"):
+        in_force(tmp_path / "empty")
 
 
 def test_a_candidate_is_admissible_unless_worse_or_missing_a_cell() -> None:
@@ -179,3 +275,54 @@ def test_the_command_reports_a_manifest_that_does_not_resolve(
     path = write_manifest(tmp_path / "m.json", manifest(store, image_digest="sha256:x"))
     assert main([str(path)]) == 2
     assert "the manifest says sha256:x" in capsys.readouterr().err
+
+
+def test_the_base_directory_matches_manifests_by_noise_model_not_name(
+    tmp_path: Path, store: LocalStore, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "base"
+    head = tmp_path / "head"
+    base.mkdir()
+    head.mkdir()
+    write_manifest(base / "decoder.json", manifest(store))
+    write_manifest(head / "depolarising.json", manifest(store))
+    old = {k: v for k, v in manifest(store).__dict__.items() if k != "noise_model"}
+    write_manifest(base / "legacy.json", old)
+    assert main(["--base", str(base), str(head / "depolarising.json")]) == 0
+    out = capsys.readouterr().out
+    assert "legacy.json names no noise model" in out
+    assert "unchanged from the manifest in force" in out
+    worse = {**FULL_RECORD, "run": "20261031T000000Z", "image_digest": "sha256:new"}
+    write_run(store.root, "sweeps/20261031T000000Z", worse, {3: 300, 5: 12, 7: 3})
+    write_manifest(
+        head / "renamed.json",
+        manifest(store, run="sweeps/20261031T000000Z", image_digest="sha256:new"),
+    )
+    (head / "depolarising.json").unlink()
+    assert main(["--base", str(base), str(head / "renamed.json")]) == 1
+    captured = capsys.readouterr()
+    assert "## " in captured.out
+    assert "1 higher" in captured.out
+    assert captured.err.startswith("refused")
+
+
+def test_a_decoder_in_force_is_replaced_not_withdrawn(
+    tmp_path: Path, store: LocalStore, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "base"
+    head = tmp_path / "head"
+    base.mkdir()
+    head.mkdir()
+    write_manifest(base / "depolarising.json", manifest(store))
+    write_manifest(head / "correlated.json", learned(store))
+    assert main(["--base", str(base), str(head / "correlated.json")]) == 1
+    captured = capsys.readouterr()
+    assert "stands on its own record" in captured.out
+    assert "depolarising has a decoder in force and no candidate" in captured.err
+
+
+def test_against_takes_one_candidate(tmp_path: Path, store: LocalStore) -> None:
+    a = write_manifest(tmp_path / "a.json", manifest(store))
+    b = write_manifest(tmp_path / "b.json", manifest(store))
+    with pytest.raises(SystemExit):
+        main([str(a), str(b), "--against", str(a)])

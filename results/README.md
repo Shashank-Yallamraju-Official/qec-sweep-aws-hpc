@@ -12,7 +12,7 @@ duckdb -c "select run, nodes_used, cells, image_digest from 's3://<bucket>/catal
 
 `results-compare <run a> <run b>` joins two runs cell by cell, prints each run's provenance, and calls a cell `lower` or `higher` only when the two 95% intervals do not touch; everything else is `within`, whatever the point estimates say. `--out` writes the joined rows as Parquet.
 
-`results-promote <manifest> [--against <manifest>]` follows a decoder manifest to its run, refuses one whose digest the run did not record, and judges the candidate against the manifest in force. See [`models/`](../models/README.md).
+`results-promote <manifest> [--against <manifest>]`, or `--base <directory> <manifest>...`, follows each decoder manifest to its run, refuses one whose digest or noise model the run did not record, reads a learned decoder's weights and refuses a hash the manifest did not say or weights the run was not made from, and judges the candidate against the manifest in force for the same noise model. See [`models/`](../models/README.md).
 
 A directory laid out like the bucket works wherever an address does, which is how the tests run.
 

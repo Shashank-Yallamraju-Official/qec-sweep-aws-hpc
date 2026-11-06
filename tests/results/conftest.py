@@ -53,7 +53,13 @@ STATEVECTOR_RECORD = {
 }
 
 
-def write_run(root: Path, key: str, record: dict[str, object], errors: dict[int, int]) -> None:
+def write_run(
+    root: Path,
+    key: str,
+    record: dict[str, object],
+    errors: dict[int, int],
+    noise_model: str = "depolarising",
+) -> None:
     run = root / key
     run.mkdir(parents=True)
     (run / "run.json").write_text(json.dumps(record))
@@ -66,6 +72,7 @@ def write_run(root: Path, key: str, record: dict[str, object], errors: dict[int,
             seed=seed,
             started=datetime(2026, 10, 30, tzinfo=UTC),
             host="node",
+            noise_model=noise_model,
         )
         write(result, run)
     (run / "logs").mkdir()
