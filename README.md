@@ -7,7 +7,7 @@ A learned decoder for the surface code, trained and judged on a Slurm cluster on
   <img alt="The learned decoder's logical error rate over matching's at distance 5 under correlated noise, against training shots of 200,000, 1,000,000 and 5,000,000, at physical error rates 0.001, 0.002 and 0.005. All three fall from 3 to 7 times matching to 0.54 to 0.90 of it, crossing the matching line between 1,000,000 and 5,000,000 shots. A second seed at 5,000,000 shots lands on the same points. Drawn from chains 20261104T023936Z, 20261104T023943Z, 20261104T023950Z and 20261106T144821Z." src="docs/figures/learning-curve-light.svg">
 </picture>
 
-Trained on 5,000,000 syndrome histories, the two-layer LSTM of the published recipe makes 10% fewer logical errors than minimum-weight matching at distance 5 under correlated noise, and 46% fewer at the lowest rate, one it never trained on. A second seed agrees. Under depolarising noise, where matching is near optimal, it is 16% worse. The five runs behind the figure cost $2.63.
+Trained on 5,000,000 syndrome histories, the two-layer LSTM of the published recipe makes 10% fewer logical errors than minimum-weight matching at distance 5 under correlated noise, and 46% fewer at the lowest rate, one it never trained on. A second seed agrees. Under depolarising noise, where matching is near optimal, it is 16% worse. The four chains in the figure and the control cost $2.63.
 
 Two stages wait on quota, the GPU path and the EFA points of the MPI stage; everything they plug into is built.
 
