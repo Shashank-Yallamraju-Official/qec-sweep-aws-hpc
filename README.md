@@ -44,25 +44,25 @@ Each stage ends with one measurement. The full account of each, with its compari
 
 A change travels through a pull request. CI validates the cluster configuration against the account, runs a smoke job on the head node, plans Terraform and judges a changed decoder manifest against the one in force; the merge installs the job scripts, applies the configuration and applies Terraform. A run writes its record and its cells under its own key in a bucket whose versions cannot be deleted for a year; a catalogue folds the records into one table; a static site compares any two runs cell by cell with intervals, in the browser, with no server behind it. The decoder loop is one chain of Slurm jobs, from Stim samples through training across nodes to evaluation against PyMatching, with the trained model a choice of the sweep's cell contract so both decoders are judged through the same records.
 
-An experiment is one pass of a fixed loop, recorded under [`experiments/`](experiments/README.md): the state from the last chain's records, the diagnosis, the candidates with predicted effect and cost, the researcher's decision, a prediction with its threshold and budget committed before anything runs, then the result against it. The process is versioned in that directory's README, with a row for each change and the experiment that forced it. The design and the reasons behind every choice are in [docs/design.md](docs/design.md); the order of work, every commit and every measured number are in [docs/plan.md](docs/plan.md).
+An experiment is one pass of a fixed loop, recorded under [`experiments/`](experiments/README.md): state from the last chain's records, diagnosis, ranked candidates with predicted effect and cost, the researcher's decision, a prediction committed before anything runs, the result against it. The design is in [docs/design.md](docs/design.md); every commit and every measured number are in [docs/plan.md](docs/plan.md).
 
 ## What broke
 
-The account refused every HPC and accelerated-instance quota and denies every IAM identity-provider action, so the EFA and GPU stages wait on appeals and the CI runners are CodeBuild projects carrying roles. Slurm hands tasks to nodes that are still powering up, so a sixteen-node run started mid-boot measured provisioning instead of decoding. Stim and PyMatching ship no arm64 wheels, so the Graviton image compiles them. DCV accepts a certificate only at mode 600 and otherwise falls back to its own without a word. The decoder lost to matching at distance 5 on 200,000 training shots and ten epochs, underfit rather than overfit; the plan recorded the ratios with their intervals, and the research loop then asked whether data or capacity was short, and answered it.
+Slurm hands tasks to nodes that are still powering up, so a sixteen-node run started mid-boot measured provisioning instead of decoding. Stim and PyMatching ship no arm64 wheels, so the Graviton image compiles them. DCV accepts a certificate only at mode 600 and otherwise falls back to its own without a word. The decoder lost to matching at distance 5 on 200,000 shots and ten epochs, underfit rather than overfit; the plan recorded the ratios with their intervals, and the research loop asked whether data or capacity was short.
 
 ## Map
 
 | Directory | What it is for |
 | --- | --- |
-| [`sweep/`](sweep/README.md) | One call, one cell, one Parquet file: the unit of work, the grid, the reducer and the threshold plot |
-| [`decoder/`](decoder/README.md) | Syndrome samples, the recurrent decoder, its training across nodes, a cell decoded with it, and the diagnosis of a chain |
-| [`mpi/`](mpi/README.md) | A state-vector simulator sharded across MPI ranks, for the tightly coupled runs |
-| [`experiments/`](experiments/README.md) | The research loop: the process, versioned, and one record per experiment |
-| [`results/`](results/README.md) | The catalogue over every run's record, the comparison of two runs, and the check that admits a decoder manifest |
-| [`models/`](models/README.md) | The decoder in force, as a manifest changed by pull request |
-| [`web/`](web/README.md) | The comparison site, published to GitHub Pages on every merge |
-| [`jobs/`](jobs/README.md) | The Slurm scripts that submit a sweep, a scaling run or the decoder chain and write its record |
-| [`cluster/`](cluster/README.md) | The ParallelCluster configurations, x86 and Graviton, the AMI builds and the login node's desktop |
-| [`image/`](image/README.md) | The Apptainer definitions CI builds into the images the jobs pull |
-| [`infra/`](infra/README.md) | Terraform for the bucket, the node roles, the CI runners and the cost guardrails |
-| [`tools/`](tools/README.md) | The commit-message rule, the cost and loop reports, the two figures above and the experiment records' tool |
+| [`sweep/`](sweep/README.md) | One call, one cell, one Parquet file; the grid, the reducer, the plot |
+| [`decoder/`](decoder/README.md) | Samples, the recurrent decoder, training across nodes, the diagnosis of a chain |
+| [`mpi/`](mpi/README.md) | A state-vector simulator sharded across MPI ranks |
+| [`experiments/`](experiments/README.md) | The research loop, versioned, and one record per experiment |
+| [`results/`](results/README.md) | The catalogue, the comparison of two runs, the manifest check |
+| [`models/`](models/README.md) | The decoder in force, a manifest changed by pull request |
+| [`web/`](web/README.md) | The comparison site, on GitHub Pages |
+| [`jobs/`](jobs/README.md) | The Slurm scripts, each writing its run's record |
+| [`cluster/`](cluster/README.md) | ParallelCluster configurations, x86 and Graviton, the AMI builds, the desktop |
+| [`image/`](image/README.md) | The Apptainer definitions behind the images the jobs pull |
+| [`infra/`](infra/README.md) | Terraform for the bucket, the roles, the CI runners, the cost guardrails |
+| [`tools/`](tools/README.md) | The commit rule, the reports, the two figures above, the experiment records' tool |
