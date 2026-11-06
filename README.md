@@ -46,6 +46,10 @@ A change travels through a pull request. CI validates the cluster configuration 
 
 An experiment is one pass of a fixed loop, recorded under [`experiments/`](experiments/README.md): state from the last chain's records, diagnosis, ranked candidates with predicted effect and cost, the researcher's decision, a prediction committed before anything runs, the result against it. The design is in [docs/design.md](docs/design.md); every commit and every measured number are in [docs/plan.md](docs/plan.md).
 
+## Where it stands
+
+The decoder is the two-layer LSTM of Baireuther, O'Brien, Tarasinski and Beenakker ([Quantum 2, 48, 2018](https://doi.org/10.22331/q-2018-01-29-48)), reproduced as written and not tuned. The baseline is PyMatching's minimum-weight perfect matching, which decodes a Y error as two independent flips and so is known to be weak under exactly the correlated noise the win is measured on; the depolarising control, where matching is near optimal, finds the learned decoder 16% worse. So the result reproduces a known effect against a baseline known to be weak to it, and does not yet beat the strongest classical decoder. Correlated matching and belief-matching, which handle the Y correlation, are the next experiment. The field's frontier, AlphaQubit ([Bausch et al., Nature 635, 834, 2024](https://doi.org/10.1038/s41586-024-08148-8)), decodes real Sycamore data at distances 3 and 5 and simulated data to distance 11 with a recurrent transformer; this project attempts no real data, no distance above 5, no real-time decoding and no architecture beyond the 2018 recipe.
+
 ## What broke
 
 Slurm hands tasks to nodes that are still powering up, so a sixteen-node run started mid-boot measured provisioning instead of decoding. Stim and PyMatching ship no arm64 wheels, so the Graviton image compiles them. DCV accepts a certificate only at mode 600 and otherwise falls back to its own without a word. The decoder lost to matching at distance 5 on 200,000 shots and ten epochs, underfit rather than overfit; the plan recorded the ratios with their intervals, and the research loop asked whether data or capacity was short.
