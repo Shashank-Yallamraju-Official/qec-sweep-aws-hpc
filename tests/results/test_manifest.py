@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,8 +14,8 @@ FULL = "sweeps/20261030T231737Z"
 
 
 def manifest(store: LocalStore, run: str = FULL, **changes: object) -> Manifest:
-    base = {"name": "pymatching", "decoder": "pymatching", "run": store.uri(run)}
-    base["image_digest"] = "sha256:9d217f8c"
+    base = {"name": "pymatching", "decoder": "pymatching", "noise_model": "depolarising"}
+    base |= {"run": store.uri(run), "image_digest": "sha256:9d217f8c"}
     return Manifest(**{**base, **changes})  # type: ignore[arg-type]
 
 
@@ -31,7 +32,7 @@ def test_read_manifest_takes_the_fields_and_nothing_else(tmp_path: Path, store: 
 
 def test_read_manifest_names_a_missing_field(tmp_path: Path) -> None:
     path = write_manifest(tmp_path / "m.json", {"name": "x", "decoder": "pymatching"})
-    with pytest.raises(ValueError, match="lacks image_digest, run"):
+    with pytest.raises(ValueError, match="lacks image_digest, noise_model, run"):
         read_manifest(path)
 
 
@@ -57,6 +58,76 @@ def test_resolve_refuses_a_digest_the_run_did_not_record(store: LocalStore) -> N
 def test_resolve_refuses_a_run_that_never_recorded_a_digest(store: LocalStore) -> None:
     with pytest.raises(ValueError, match="recorded image none"):
         resolve(manifest(store, run="sweeps/20261030T001136Z"))
+
+
+def test_resolve_refuses_a_run_under_another_noise_model(store: LocalStore) -> None:
+    correlated = {**FULL_RECORD, "run": "20261031T000000Z", "noise": "correlated"}
+    write_run(store.root, "evaluations/20261031T000000Z", correlated, {5: 12})
+    with pytest.raises(
+        ValueError, match="ran under correlated noise, the manifest says depolarising"
+    ):
+        resolve(manifest(store, run="evaluations/20261031T000000Z"))
+    record, _ = resolve(
+        manifest(store, run="evaluations/20261031T000000Z", noise_model="correlated")
+    )
+    assert record.run == "20261031T000000Z"
+
+
+def learned(store: LocalStore, weights: bytes = b"weights", **changes: object) -> Manifest:
+    """A learned manifest whose weights sit in a training run the judged run came from."""
+    train = store.root / "train" / "20261031T000000Z"
+    train.mkdir(parents=True, exist_ok=True)
+    (train / "decoder.pt").write_bytes(weights)
+    record = {
+        **FULL_RECORD,
+        "run": "20261031T000100Z",
+        "noise": "correlated",
+        "parents": [store.uri("train/20261031T000000Z")],
+    }
+    if not (store.root / "evaluations" / "20261031T000100Z").exists():
+        write_run(store.root, "evaluations/20261031T000100Z", record, {5: 12})
+    fields = {
+        "name": "lstm",
+        "decoder": "learned",
+        "noise_model": "correlated",
+        "run": store.uri("evaluations/20261031T000100Z"),
+        "image_digest": "sha256:9d217f8c",
+        "artifact": store.uri("train/20261031T000000Z/decoder.pt"),
+        "artifact_sha256": hashlib.sha256(weights).hexdigest(),
+    }
+    return Manifest(**{**fields, **changes})  # type: ignore[arg-type]
+
+
+def test_resolve_reads_a_learned_decoder_s_weights_and_holds_them_to_the_hash(
+    store: LocalStore,
+) -> None:
+    record, table = resolve(learned(store))
+    assert record.run == "20261031T000100Z"
+    assert table.num_rows == 1
+    with pytest.raises(ValueError, match=r"hashes to [0-9a-f]{64}, the manifest says 0abc"):
+        resolve(learned(store, artifact_sha256="0abc"))
+
+
+def test_resolve_refuses_weights_the_judged_run_did_not_come_from(store: LocalStore) -> None:
+    elsewhere = store.root / "train" / "20261031T000200Z"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / "decoder.pt").write_bytes(b"weights")
+    with pytest.raises(ValueError, match=r"was not made from .*train/20261031T000200Z"):
+        resolve(learned(store, artifact=store.uri("train/20261031T000200Z/decoder.pt")))
+
+
+def test_resolve_refuses_a_learned_manifest_without_weights_and_matching_with(
+    store: LocalStore,
+) -> None:
+    with pytest.raises(ValueError, match="name its weights"):
+        resolve(learned(store, artifact=None, artifact_sha256=None))
+    with pytest.raises(ValueError, match="matching and has no weights"):
+        resolve(manifest(store, artifact=store.uri("train/x/decoder.pt")))
+
+
+def test_resolve_reports_missing_weights_as_not_found(store: LocalStore) -> None:
+    with pytest.raises(FileNotFoundError):
+        resolve(learned(store, artifact=store.uri("train/20261031T000000Z/nowhere.pt")))
 
 
 def test_a_candidate_is_admissible_unless_worse_or_missing_a_cell() -> None:
