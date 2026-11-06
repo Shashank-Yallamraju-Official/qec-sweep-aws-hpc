@@ -1,4 +1,4 @@
-"""Experiment records: ``experiment new``, ``check`` and ``index``.
+"""Experiment records: ``experiment new``, ``check``, ``index`` and ``baseline``.
 
 A record is one Markdown file under ``experiments/``, numbered, its data in a
 frontmatter block and its prose under nine fixed headings in a fixed order; the
@@ -8,18 +8,25 @@ closed one without its result, and a closed one whose Prediction differs from th
 one in the commit that registered the record, which is the proof the prediction came
 first and survives the rebase that merging rewrites commit ids with; ``index``
 rewrites the table in the README from the records' frontmatter, and ``check``
-fails while that table is stale.
+fails while that table is stale; ``baseline`` names the decoder in force under each
+noise model from the manifests under ``models/`` and the chain its run came from,
+which is where an experiment's State starts.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+from results.manifest import read_manifest
+from results.run import read_record as read_run
+from results.store import locate
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "experiments" / "TEMPLATE.md"
 README = "README.md"
@@ -285,20 +292,88 @@ def _registered_prediction(path: Path, commit: str) -> str:
     return str(sections.get("Prediction", ""))
 
 
+@dataclass(frozen=True)
+class Baseline:
+    """The decoder in force under one noise model, and where to start from to beat it.
+
+    Attributes:
+        noise_model: The noise model the manifest is in force under.
+        name: The decoder's name.
+        run: The full address of the run that earned it.
+        cells: The cells that run names, ``distance:rate``, when its record lists them.
+        chain: The chain the run came from, by full address; ``None`` for a run that
+            stands alone, such as a sweep.
+    """
+
+    noise_model: str
+    name: str
+    run: str
+    cells: tuple[str, ...]
+    chain: str | None
+
+
+def baseline(models: Path) -> list[Baseline]:
+    """The decoder in force under each noise model, from the manifests under ``models/``.
+
+    Each manifest is followed to its run's record; the first parent under ``chains/``
+    is the chain to diagnose.
+
+    Raises:
+        FileNotFoundError: When there are no manifests, or a run is not where one says.
+        ValueError: When a manifest lacks a field.
+    """
+    manifests = sorted(models.glob("*.json"))
+    if not manifests:
+        msg = f"no manifests under {models}"
+        raise FileNotFoundError(msg)
+    found = []
+    for path in manifests:
+        manifest = read_manifest(path)
+        store, key = locate(manifest.run)
+        record = read_run(store, key)
+        cells = json.loads(record.parameters).get("cells", [])
+        chains = [p for p in record.parents if p.rsplit("/", 2)[-2] == "chains"]
+        found.append(
+            Baseline(
+                manifest.noise_model,
+                manifest.name,
+                manifest.run,
+                tuple(cells),
+                chains[0] if chains else None,
+            )
+        )
+    return found
+
+
+def describe(baselines: Sequence[Baseline]) -> str:
+    """The baselines as the State step wants them: one block per noise model."""
+    lines = []
+    for b in baselines:
+        cells = f", cells {' '.join(b.cells)}" if b.cells else ""
+        lines.append(f"{b.noise_model}: {b.name} in force from {b.run}{cells}")
+        if b.chain:
+            lines.append(f"  start from: uv run decoder-diagnose {b.chain}")
+        else:
+            lines.append("  start from: no chain behind this run; it stands alone")
+    return "\n".join(lines)
+
+
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(["git", *args], cwd=repo, check=False, capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run one of ``new <slug>``, ``check`` or ``index`` from the command line.
+    """Run ``new <slug>``, ``check``, ``index`` or ``baseline`` from the command line.
 
     Args:
         argv: The subcommand and its arguments; ``None`` reads ``sys.argv``. ``--dir``
-            names the records' directory, ``experiments`` by default.
+            names the records' directory, ``experiments`` by default; ``--models`` the
+            manifests', ``models`` by default.
 
     Returns:
-        Exit status: 0 when done or when the check passes, 1 when it finds problems.
+        Exit status: 0 when done or when the check passes, 1 when it finds problems,
+        2 when a manifest or its run cannot be read.
     """
     parser = argparse.ArgumentParser(prog="experiment", description="experiment records")
     where = argparse.ArgumentParser(add_help=False)
@@ -307,11 +382,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("new", parents=[where], help="write the next record").add_argument("slug")
     commands.add_parser("check", parents=[where], help="refuse incomplete records, stale index")
     commands.add_parser("index", parents=[where], help="rewrite the README's index")
+    start = commands.add_parser("baseline", help="the decoder in force, and its chain")
+    start.add_argument("--models", type=Path, default=Path("models"), help="the manifests")
     args = parser.parse_args(argv)
     if args.command == "new":
         print(new(args.dir, args.slug))
     elif args.command == "index":
         print(index(args.dir))
+    elif args.command == "baseline":
+        try:
+            print(describe(baseline(args.models)))
+        except (FileNotFoundError, ValueError) as error:
+            print(f"experiment: {error}", file=sys.stderr)
+            return 2
     else:
         problems = check(args.dir)
         for problem in problems:
