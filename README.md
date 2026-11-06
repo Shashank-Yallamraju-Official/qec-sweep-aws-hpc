@@ -9,12 +9,12 @@ A learned decoder for the surface code, trained and judged on a Slurm cluster on
 
 Trained on 5,000,000 syndrome histories, the two-layer LSTM of the published recipe makes 10% fewer logical errors than minimum-weight matching at distance 5 under correlated noise, and 46% fewer at the lowest rate, one it never trained on. A second seed agrees. Under depolarising noise, where matching is near optimal, it is 16% worse. The four chains in the figure and the control cost $2.63.
 
-Two stages wait on quota, the GPU path and the EFA points of the MPI stage; everything they plug into is built.
+Two stages closed without their points. The GPU stage was never built: the account's GPU quota is zero and the request of 30 October has had no answer. The EFA points of the MPI stage were not run: their quotas were granted on 1 and 2 November, which the stage's close-out a day later missed, and the project is not reopening it. What both plug into is built.
 
 ## What was hard
 
 - **No number is typed in.** An experiment's State is a tool's output pasted with its command, and a hook refuses a closed record whose Prediction differs from the one committed before the run. Two predictions stand recorded as wrong.
-- **The account said no.** No GPU or HPC quota, no spot, no identity federation for GitHub. CodeBuild runners carry roles instead, the scaling result is reported over TCP as provisional, and the GPU queue has its interfaces waiting.
+- **The account said no.** No GPU quota, an HPC quota that came after the MPI stage had been measured over TCP, no spot, no identity federation for GitHub. CodeBuild runners carry roles instead, the scaling result is over TCP, and the GPU queue has its interfaces and no hardware.
 - **Elastic compute makes cost a per-run number**, and the defaults fight it. Slurm hands tasks to nodes still booting; the scale-down that made a sweep cheap made a chained run slow; a baked AMI saves the installs but not the boot.
 
 ## Numbers
