@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 540" width="1240" height="540" font-family="-apple-system, Inter, 'Helvetica Neue', 'Segoe UI', Arial, sans-serif" role="img">
+<title>Learned decoder over matching against training shots, correlated noise</title>
+<desc>Read: s3://qec-sweep-results-523520772490/chains/20261104T023936Z, s3://qec-sweep-results-523520772490/chains/20261104T023943Z, s3://qec-sweep-results-523520772490/chains/20261104T023950Z, s3://qec-sweep-results-523520772490/chains/20261106T144821Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023939Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023941Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023946Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023948Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023953Z, s3://qec-sweep-results-523520772490/evaluations/20261104T023955Z, s3://qec-sweep-results-523520772490/evaluations/20261106T144858Z, s3://qec-sweep-results-523520772490/evaluations/20261106T144900Z, s3://qec-sweep-results-523520772490/train/20261104T023938Z, s3://qec-sweep-results-523520772490/train/20261104T023945Z, s3://qec-sweep-results-523520772490/train/20261104T023952Z, s3://qec-sweep-results-523520772490/train/20261106T144857Z</desc>
+<rect width="1240" height="540" fill="#ffffff"/>
+<line x1="96.0" y1="464.0" x2="1070.0" y2="464.0" stroke="#c9c9ce" stroke-width="1"/>
+<line x1="96.0" y1="410.7" x2="1070.0" y2="410.7" stroke="#e3e3e8" stroke-width="1"/>
+<text x="84.0" y="414.7" text-anchor="end" fill="#8b8b92" font-size="12">0.5</text>
+<text x="84.0" y="328.6" text-anchor="end" fill="#8b8b92" font-size="12">1</text>
+<line x1="96.0" y1="238.4" x2="1070.0" y2="238.4" stroke="#e3e3e8" stroke-width="1"/>
+<text x="84.0" y="242.4" text-anchor="end" fill="#8b8b92" font-size="12">2</text>
+<line x1="96.0" y1="152.3" x2="1070.0" y2="152.3" stroke="#e3e3e8" stroke-width="1"/>
+<text x="84.0" y="156.3" text-anchor="end" fill="#8b8b92" font-size="12">4</text>
+<line x1="96.0" y1="66.2" x2="1070.0" y2="66.2" stroke="#e3e3e8" stroke-width="1"/>
+<text x="84.0" y="70.2" text-anchor="end" fill="#8b8b92" font-size="12">8</text>
+<line x1="173.3" y1="464.0" x2="173.3" y2="470.0" stroke="#c9c9ce" stroke-width="1"/>
+<text x="173.3" y="488.0" text-anchor="middle" fill="#8b8b92" font-size="12">200k</text>
+<line x1="583.0" y1="464.0" x2="583.0" y2="470.0" stroke="#c9c9ce" stroke-width="1"/>
+<text x="583.0" y="488.0" text-anchor="middle" fill="#8b8b92" font-size="12">1M</text>
+<line x1="992.7" y1="464.0" x2="992.7" y2="470.0" stroke="#c9c9ce" stroke-width="1"/>
+<text x="992.7" y="488.0" text-anchor="middle" fill="#8b8b92" font-size="12">5M</text>
+<text x="583.0" y="520.0" text-anchor="middle" fill="#1b1b1f" font-size="13">training shots</text>
+<text x="26" y="250.0" fill="#1b1b1f" font-size="13" text-anchor="middle" transform="rotate(-90 26 250.0)">learned decoder's logical error rate over matching's</text>
+<line x1="96.0" y1="324.6" x2="1070.0" y2="324.6" stroke="#4a4a52" stroke-width="1"/>
+<text x="104.0" y="317.6" text-anchor="start" fill="#8b8b92" font-size="12">matching</text>
+<path d="M173.3,82.6 L583.0,299.5 L992.7,400.6" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="173.3" y1="106.2" x2="173.3" y2="58.9" stroke="#2a78d6" stroke-width="1.2"/>
+<circle cx="173.3" cy="82.6" r="4.5" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<line x1="583.0" y1="332.1" x2="583.0" y2="266.8" stroke="#2a78d6" stroke-width="1.2"/>
+<circle cx="583.0" cy="299.5" r="4.5" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<line x1="992.7" y1="441.1" x2="992.7" y2="360.2" stroke="#2a78d6" stroke-width="1.2"/>
+<circle cx="992.7" cy="400.6" r="4.5" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<text x="1047.7" y="404.6" text-anchor="start" fill="#1b1b1f" font-size="12">p = 0.001 · 0.54</text>
+<line x1="1031.7" y1="424.8" x2="1031.7" y2="347.3" stroke="#2a78d6" stroke-width="1.2"/>
+<circle cx="1031.7" cy="386.0" r="4.5" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+<path d="M173.3,124.3 L583.0,276.7 L992.7,372.0" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="173.3" y1="133.8" x2="173.3" y2="114.7" stroke="#eb6834" stroke-width="1.2"/>
+<circle cx="173.3" cy="124.3" r="4.5" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<line x1="583.0" y1="288.7" x2="583.0" y2="264.7" stroke="#eb6834" stroke-width="1.2"/>
+<circle cx="583.0" cy="276.7" r="4.5" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<line x1="992.7" y1="386.6" x2="992.7" y2="357.5" stroke="#eb6834" stroke-width="1.2"/>
+<circle cx="992.7" cy="372.0" r="4.5" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<text x="1047.7" y="376.0" text-anchor="start" fill="#1b1b1f" font-size="12">p = 0.002 · 0.68</text>
+<line x1="1031.7" y1="385.1" x2="1031.7" y2="356.7" stroke="#eb6834" stroke-width="1.2"/>
+<circle cx="1031.7" cy="370.9" r="4.5" fill="#ffffff" stroke="#eb6834" stroke-width="2"/>
+<path d="M173.3,186.1 L583.0,265.9 L992.7,337.0" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="173.3" y1="188.9" x2="173.3" y2="183.3" stroke="#1baf7a" stroke-width="1.2"/>
+<circle cx="173.3" cy="186.1" r="4.5" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<line x1="583.0" y1="269.2" x2="583.0" y2="262.7" stroke="#1baf7a" stroke-width="1.2"/>
+<circle cx="583.0" cy="265.9" r="4.5" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<line x1="992.7" y1="340.7" x2="992.7" y2="333.3" stroke="#1baf7a" stroke-width="1.2"/>
+<circle cx="992.7" cy="337.0" r="4.5" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<text x="1047.7" y="341.0" text-anchor="start" fill="#1b1b1f" font-size="12">p = 0.005 · 0.90</text>
+<line x1="1031.7" y1="339.1" x2="1031.7" y2="331.8" stroke="#1baf7a" stroke-width="1.2"/>
+<circle cx="1031.7" cy="335.4" r="4.5" fill="#ffffff" stroke="#1baf7a" stroke-width="2"/>
+<circle cx="112.0" cy="46.0" r="4.5" fill="#4a4a52" stroke="#ffffff" stroke-width="2"/>
+<text x="124.0" y="50.0" text-anchor="start" fill="#8b8b92" font-size="12">seed 0</text>
+<circle cx="202.0" cy="46.0" r="4.5" fill="#ffffff" stroke="#4a4a52" stroke-width="2"/>
+<text x="214.0" y="50.0" text-anchor="start" fill="#8b8b92" font-size="12">seed 100, nudged right</text>
+</svg>

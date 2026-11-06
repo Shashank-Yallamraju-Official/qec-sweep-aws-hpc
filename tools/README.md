@@ -11,6 +11,7 @@ The scripts that measure the project and keep its rules, none of which run on th
 | `uv run python tools/check_commit.py <message file>` | a commit message | whether it follows the format in `CLAUDE.md`; the commit hook runs it |
 | `uv run experiment new <slug>`, `check`, `index` | the records under `experiments/` and git | the next record from the template; whether every record is complete, a closed one's run commits follow its registration and the README's index is current, which the commit hook refuses otherwise; the index rewritten |
 | `uv run python -m tools.loop_figure` | the marks under `docs/figures/marks` | the README's figure, `docs/figures/loop-light.svg` and `loop-dark.svg`, with the marks embedded |
+| `uv run python -m tools.learning_curve <chain>...` | each chain's records, as `decoder-diagnose` reads them | the README's learning curve, `docs/figures/learning-curve-light.svg` and `-dark.svg`: the learned decoder over matching against training shots, every address read in the file's description |
 
 Each report prints the addresses it read, so a number in the write-up walks back to a record. The marks are GitHub's Invertocat, under GitHub's logo guidelines, and two AWS Architecture Icons, under their terms for architecture diagrams. `<run>` is `s3://bucket/<kind>/<run>` or a directory laid out the same way.
 
