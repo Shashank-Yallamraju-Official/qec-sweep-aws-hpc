@@ -33,6 +33,7 @@ One measurement per stage; the full account of each is in [the plan](docs/plan.m
 | 15, shorter loop | the platform's share of commit to first cell; dollars per 16-node sweep | 5.6 min from 6.4; $0.098 from $0.30 |
 | 16, research loop | learned over matching at distance 5, by training shots | 3.05, 1.60, 0.90 at 200k, 1M, 5M; 0.92 on a second seed; 1.16 under depolarising noise |
 | 17, front page | words a reader passes before the first result; the README's length | 47 from 621; 1100 words from 1,597 |
+| 18, decoder in force | cells where the decoder in force beats matching, intervals apart, per noise model | correlated 3 of 3; depolarising 0 of 3, matching stays |
 
 ## The platform
 
@@ -45,7 +46,7 @@ A change travels through a pull request: CI validates the cluster configuration 
 
 ## Where it stands
 
-The decoder is the LSTM of Baireuther, O'Brien, Tarasinski and Beenakker ([Quantum 2, 48, 2018](https://doi.org/10.22331/q-2018-01-29-48)), reproduced as written and not tuned. The baseline, minimum-weight perfect matching, decodes a Y error as two independent flips and is known to be weak under exactly the correlated noise the win is measured on; the depolarising control, where matching is near optimal, finds the learned decoder 16% worse. So this reproduces a known effect against a baseline known to be weak to it, and does not yet beat the strongest classical decoder. Correlated matching and belief-matching, which handle the Y correlation, are the next experiment. The frontier, AlphaQubit ([Bausch et al., Nature 635, 834, 2024](https://doi.org/10.1038/s41586-024-08148-8)), decodes real Sycamore data at distances 3 and 5 and simulation to distance 11; this project attempts no real data, no distance above 5, no real-time decoding and no architecture beyond the 2018 recipe.
+The decoder is the LSTM of Baireuther, O'Brien, Tarasinski and Beenakker ([Quantum 2, 48, 2018](https://doi.org/10.22331/q-2018-01-29-48)), reproduced as written and not tuned. The baseline, minimum-weight perfect matching, decodes a Y error as two independent flips and is known to be weak under exactly the correlated noise the win is measured on; the depolarising control, where matching is near optimal, finds the learned decoder 16% worse. So this reproduces a known effect against a baseline known to be weak to it, and does not yet beat the strongest classical decoder. The 5,000,000-shot decoder is the one in force under correlated noise, by the manifest under [`models/`](models/README.md), and matching stays in force under depolarising. Correlated matching and belief-matching, which handle the Y correlation, are the next experiment. The frontier, AlphaQubit ([Bausch et al., Nature 635, 834, 2024](https://doi.org/10.1038/s41586-024-08148-8)), decodes real Sycamore data at distances 3 and 5 and simulation to distance 11; this project attempts no real data, no distance above 5, no real-time decoding and no architecture beyond the 2018 recipe.
 
 ## How it was built
 
@@ -60,7 +61,7 @@ The plan came first: [docs/plan.md](docs/plan.md) listed every commit before any
 | [`mpi/`](mpi/README.md) | A state-vector simulator sharded across MPI ranks |
 | [`experiments/`](experiments/README.md) | The research loop, versioned, and one record per experiment |
 | [`results/`](results/README.md) | The catalogue, the comparison of two runs, the manifest check |
-| [`models/`](models/README.md) | The decoder in force, a manifest changed by pull request |
+| [`models/`](models/README.md) | The decoder in force under each noise model, a manifest changed by pull request |
 | [`web/`](web/README.md) | The comparison site, on GitHub Pages |
 | [`jobs/`](jobs/README.md) | The Slurm scripts, each writing its run's record |
 | [`cluster/`](cluster/README.md) | ParallelCluster configurations, x86 and Graviton, the AMI builds, the desktop |
