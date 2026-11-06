@@ -1,9 +1,13 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from tests.decoder.test_diagnose import ERRORS, RATES, training_record, write_chain
+from sweep.cell import Cell
+from sweep.decode import CellResult
+from sweep.parquet import write
+from tests.decoder.test_diagnose import ERRORS, RATES, SHOTS, training_record, write_chain
 from tools.learning_curve import Curve, Point, draw, main, read_chain
 
 
@@ -70,6 +74,54 @@ def test_two_noise_models_are_refused(tmp_path: Path) -> None:
     ]
     with pytest.raises(ValueError, match="one noise model"):
         draw("light", curves)
+
+
+def test_a_cell_with_no_learned_error_is_left_out_not_drawn_at_zero(tmp_path: Path) -> None:
+    path = chain(tmp_path)
+    learned = tmp_path / "evaluations" / "20261103T000003Z"
+    for cell in learned.glob("*.parquet"):
+        cell.unlink()
+    for rate in RATES:
+        result = CellResult(
+            cell=Cell(3, rate, SHOTS),
+            errors=0,
+            seconds=1.0,
+            seed=0,
+            started=datetime(2026, 11, 3, tzinfo=UTC),
+            host="node",
+            decoder="learned",
+            noise_model="correlated",
+        )
+        write(result, learned)
+    curve = read_chain(str(path))
+    assert curve.points == ()
+    assert draw("light", [curve, read_chain(str(chain(tmp_path / "b", seed=1)))]).startswith(
+        "<svg "
+    )
+
+
+def test_the_axis_spans_every_seed_and_a_later_seed_still_gets_its_label(tmp_path: Path) -> None:
+    first = read_chain(str(chain(tmp_path / "a")))
+    later = Curve("correlated", 100, (Point(5_000_000, 0.003, 0.8, 0.7, 0.9),), ("s3://b/c",))
+    svg = draw("light", [first, later])
+    assert ">5M<" in svg
+    assert "p = 0.003 · 0.80" in svg
+
+
+def test_a_missing_chain_is_one_line_on_stderr(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main([str(tmp_path / "chains" / "nowhere"), "--out", str(tmp_path / "out")]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("learning-curve: ")
+    assert "Traceback" not in err
+
+
+def test_text_is_escaped_for_xml() -> None:
+    curve = Curve("correlated", 0, (Point(10, 0.001, 1.0, 0.9, 1.1),), ("dir/a&b/chains/x",))
+    svg = draw("light", [curve])
+    assert "a&amp;b" in svg
+    assert "a&b" not in svg
 
 
 def test_more_rates_than_hues_are_refused() -> None:
