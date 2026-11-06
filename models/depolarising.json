@@ -1,6 +1,7 @@
 {
   "name": "pymatching",
   "decoder": "pymatching",
+  "noise_model": "depolarising",
   "run": "s3://qec-sweep-results-523520772490/sweeps/20261101T172143Z",
   "image_digest": "sha256:0b32b679022f5a7b6d58df0162df6a5c3b4bf0adb7af99184a2ac3933c7c87fe"
 }
