@@ -6,6 +6,7 @@ The research loop, written down. One record per experiment, numbered, from [the 
 | Experiment | Title | Status | Outcome | Cost (USD) | Next |
 | --- | --- | --- | --- | --- | --- |
 | [01](01-learning-curve.md) | Learning curve of the recurrent decoder at distance 5 | closed | supported | 1.48 | - |
+| [02](02-replication.md) | Does the 5,000,000-shot result hold? A second seed and the depolarising control | registered | - | - | - |
 <!-- /index -->
 
 ## The loop
