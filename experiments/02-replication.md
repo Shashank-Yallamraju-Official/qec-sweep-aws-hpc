@@ -1,13 +1,13 @@
 ---
 id: 2
 title: Does the 5,000,000-shot result hold? A second seed and the depolarising control
-status: registered
+status: closed
 process: 2
-runs: [chains/20261104T023950Z]
-commits: []
+runs: [chains/20261104T023950Z, chains/20261106T144821Z, chains/20261106T144902Z]
+commits: [20f88921b2ffffb6e7e93b3895636b81ad19e173]
 pull_request: null
-cost_usd: null
-outcome: null
+cost_usd: 1.15
+outcome: inconclusive
 next: null
 ---
 
@@ -90,6 +90,60 @@ Seed 100 puts the correlated run's chunks at seeds 100 to 199, its split, weight
 
 ## Run
 
+Submitted on 2026-11-06 from the head node of a fresh `qec` cluster. The job scripts are main's at `3acba71`; the images are the ones CI built for `435e17d`, the commit before it, since the only change between the two is the pages workflow and the image workflow does not run for that: `jobs/` and `decoder/` are identical at both. Both image digests are in the chain records. Submitted at 14:48 and 14:49 UTC through Systems Manager, as the Prediction's two commands with the images filled in:
+
+| Chain | Noise | Seed | Chunks |
+| --- | --- | --- | --- |
+| `chains/20261106T144821Z` | correlated | 100 | 100 |
+| `chains/20261106T144902Z` | depolarising | 0 | 100 |
+
+No code changed for this experiment; `commits` lists the registration alone.
+
 ## Result
 
+Read on 2026-11-06 with `decoder-diagnose` on each chain; the error counts behind the rates are in the evaluation cells, over 1,000,000 shots each.
+
+```sh
+uv run decoder-diagnose s3://qec-sweep-results-523520772490/chains/20261106T144821Z
+uv run decoder-diagnose s3://qec-sweep-results-523520772490/chains/20261106T144902Z
+```
+
+Chain s3://qec-sweep-results-523520772490/chains/20261106T144821Z, correlated noise, trained at p = 0.005
+
+| training | epochs | best epoch | last loss | drop over last epoch | train acc | held-out acc | fit |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| d5_p0.005_s50000 | 24 of 60 | 21 | 0.0459 | 0.6% | 0.9861 | 0.9837 | converged |
+
+| cell | floor (from 100,000 shots at most) | matching | learned | learned / matching | verdict | distribution |
+| --- | --- | --- | --- | --- | --- | --- |
+| d5_p0.001_s1000000 | 0.0668 | 0.00020 | 0.00013 | 0.61 | lower | off |
+| d5_p0.002_s1000000 | 0.1226 | 0.00142 | 0.00098 | 0.69 | lower | off |
+| d5_p0.005_s1000000 | 0.2508 | 0.01840 | 0.01686 | 0.92 | lower | on |
+
+Chain s3://qec-sweep-results-523520772490/chains/20261106T144902Z, depolarising noise, trained at p = 0.005
+
+| training | epochs | best epoch | last loss | drop over last epoch | train acc | held-out acc | fit |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| d5_p0.005_s50000 | 27 of 60 | 24 | 0.0450 | -0.1% | 0.9868 | 0.9838 | converged |
+
+| cell | floor (from 100,000 shots at most) | matching | learned | learned / matching | verdict | distribution |
+| --- | --- | --- | --- | --- | --- | --- |
+| d5_p0.001_s1000000 | 0.0577 | 0.00014 | 0.00011 | 0.79 | within | off |
+| d5_p0.002_s1000000 | 0.1101 | 0.00096 | 0.00092 | 0.96 | within | off |
+| d5_p0.005_s1000000 | 0.2297 | 0.01412 | 0.01631 | 1.16 | higher | on |
+
+**Prediction 1, the win holds: met.** Seed 100 under correlated noise is below matching at every rate with the intervals apart: 0.92 at p = 0.005 (16,862 errors against 18,400; intervals [0.01661, 0.01712] and [0.01814, 0.01867]), 0.69 at 0.002, 0.61 at 0.001, against seed 0's 0.90, 0.68 and 0.54. The two seeds are within 0.02 of each other at the training rate and 0.07 at the lowest. Under revision 2 of the process, experiment 01's win is now supported on two training seeds that share no shot and no random draw.
+
+**Prediction 2, the gain is the correlation: failed high.** Under depolarising noise the ratio at p = 0.005 is **1.16**, above the band of 0.90 to 1.10, with the intervals apart: the learned decoder is worse than matching there (16,307 errors against 14,118). At the two lower rates it is 0.96 and 0.79, both `within`. So the outcome is `inconclusive` by the pre-registered rule, and the Result owes the reading. The learned decoder's own error rate barely moves between noise models: 0.01631 under depolarising against 0.01686 (seed 100) and 0.01624 (seed 0) under correlated noise, all at p = 0.005. What moves is matching: 0.01412 under depolarising, 0.01840 and 0.01795 under correlated. The decoder learned the code to about the same standard under both models; the win under correlated noise is the size of matching's loss on Y errors, which is the design's story, confirmed more sharply than the band allowed for. The band was wrong because it was set by intuition rather than from the records: the State already held matching's two rates, 0.0136 and 0.0182, and a decoder at a fixed quality near 0.0163 gives ratios of 0.90 and 1.20 from those two numbers alone.
+
+**Beyond the predictions.** Under depolarising noise the learned decoder is 16% worse than matching at the training rate and no better than it at the lower rates, so there is headroom left in the decoder itself, which more data or capacity would show. Both trainings converged by patience, at epochs 24 and 27 of 60, with best epochs 21 and 24 and held-out accuracy 0.9837 and 0.9838, within 0.3% of training accuracy; the training took 991 and 1,068 seconds on four ranks.
+
+**Threats.** The depolarising comparison is one seed. The 1.16 is well outside its interval, so a second seed would not bring it inside the band, but the exact figure would move. The floor column is estimated from 100,000 shots, not the cell's 1,000,000, as the tool says.
+
+**Cost.** Priced from the records at the published rates on 2026-11-06 (`c7a.large` $0.1026/h, `c7i.large` $0.0893/h, `t3.medium` $0.0416/h), the same way as experiment 01: nodes used times wall-clock from submission to the last write, plus the three-minute tail per node, at the dearer type. Compute 6.97 node-hours running, 10.87 billed, **$1.12** at most ($0.59 correlated, $0.53 depolarising); head node 0.6 hours, **$0.03**; total **$1.15**, inside the $1.10 to $1.30 expected and under the $3 budget. Priced before the cluster was deleted, in the same session, as revision 2 asks.
+
 ## Next
+
+**The question that follows.** Two things, in this order. First, not an experiment: promote the seed-0 model through the stage 13 manifest, since its win now stands on two seeds, so the site compares it as the decoder in force. Second, experiment 03, from the pre-registered reading of an inconclusive-high outcome and from what the control showed: the learned decoder is at the same quality under both noise models and 16% short of matching under depolarising noise at the training rate, so the next question is whether that quality improves with more data or with more capacity. A learning curve to 25,000,000 shots under depolarising noise answers both at once: if the depolarising ratio falls below one, data was the limit and the correlated ratio will fall further too; if it flattens above one, capacity is, and candidate 4 of experiment 01, a wider or deeper model, is next.
+
+**The process.** One change: a predicted band is derived from a number already in the State, and the Prediction names that number beside the band. Prediction 2's band came from intuition when the State held the two matching rates that fix it; revision 3 of the README carries the rule.
