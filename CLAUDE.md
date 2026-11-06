@@ -5,6 +5,7 @@ Read docs/design.md and docs/plan.md before starting a stage. The plan lists eve
 ## Working
 - One branch per stage, `stage-NN-<scope>`, merged by rebase through a pull request. Never commit on main.
 - After stage 16, one branch per experiment, `exp-NN-<slug>`. Its record under experiments/ is its plan; the Prediction is committed before anything runs, and a closed record is never edited.
+- A decoder is promoted on its own branch, `promote-<slug>`: the manifest commit and the metrics row that records the check's verdict, nothing else. The models workflow judges it; an experiment never edits a manifest.
 - Commits follow docs/plan.md. The only unplanned commits are fixes, scoped to the directory they touch.
 - `uv run pre-commit run --all-files` and `uv run pytest` pass before every commit; the hooks refuse otherwise.
 - Run /code-review on the branch before opening its pull request.
